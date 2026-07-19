@@ -563,10 +563,6 @@ function App() {
 
     if (activeTab === 'shirts') {
       const shirtEntries = Object.entries(selectedExam.shirts || {});
-      const filteredShirts = shirtEntries.filter(([type]) => {
-        const matchYear = yearFilter === 'ทั้งหมด' || type.includes(yearFilter);
-        return matchYear;
-      });
 
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -628,8 +624,8 @@ function App() {
             </form>
           )}
 
-          {filteredShirts.length > 0 ? (
-            filteredShirts.map(([type, sizeObj]) => {
+          {shirtEntries.length > 0 ? (
+            shirtEntries.map(([type, sizeObj]) => {
               const totalInType = Object.values(sizeObj).reduce((a, b) => a + (Number(b) || 0), 0);
               return (
                 <div key={type} className="category-block" style={{ backgroundColor: 'var(--theme-shirt)' }}>
@@ -1064,11 +1060,9 @@ function App() {
             </div>
 
             {/* Smart Filter Bar (Only show if year filters exist) */}
-            {((activeTab === 'shirts' && extractYearsFromKeys(Object.keys(selectedExam.shirts || {})).length > 1) ||
-              (activeTab === 'medals' && extractYearsFromKeys(Object.keys(selectedExam.medals || {})).length > 1) ||
+            {((activeTab === 'medals' && extractYearsFromKeys(Object.keys(selectedExam.medals || {})).length > 1) ||
               (activeTab === 'covers' && extractYearsFromKeys(Object.keys(selectedExam.covers || {})).length > 1)) && (
               <div className="filter-bar">
-                {activeTab === 'shirts' && getYearFilterUI(Object.keys(selectedExam.shirts || {}))}
                 {activeTab === 'medals' && getYearFilterUI(Object.keys(selectedExam.medals || {}))}
                 {activeTab === 'covers' && getYearFilterUI(Object.keys(selectedExam.covers || {}))}
               </div>
