@@ -1,21 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebase';
-import { collection, onSnapshot, setDoc, doc, updateDoc, deleteDoc, query, orderBy, limit, serverTimestamp, addDoc } from 'firebase/firestore';
-import { Plus, Minus, History, X, Save, Edit3, Calendar, Package, PlusCircle, Trash2, CheckCircle2, Filter, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
-
-const COLORS = {
-  bg: '#FDFCF0',
-  header: '#E2F0CB',
-  shirt: '#FFD1DC',
-  medal: '#FFF5BA',
-  cover: '#B2E2F2',
-  text: '#555',
-  success: '#88AB8E',
-  danger: '#FFB3BA'
-};
+import { collection, onSnapshot, setDoc, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, addDoc } from 'firebase/firestore';
+import { 
+  History, X, Save, Edit3, Package, PlusCircle, Trash2, CheckCircle2, 
+  ArrowUpCircle, ArrowDownCircle, Award, Shirt, FileText 
+} from 'lucide-react';
 
 const SIZE_RANK = { "XS": 1, "S": 2, "M": 3, "L": 4, "XL": 5, "XXL": 6, "3XL": 7, "4XL": 8, "5XL": 9 };
-const DEFAULT_SIZES = { "XS": 0, "S": 0, "M": 0, "L": 0, "XL": 0, "XXL": 0, "3XL": 0 };
+const MEDAL_ORDER = { "ทอง": 1, "เงิน": 2, "ทองแดง": 3 };
 
 function App() {
   const [exams, setExams] = useState([]);
@@ -28,13 +20,29 @@ function App() {
   const [adjustAmount, setAdjustAmount] = useState({});
   const [editCoverName, setEditCoverName] = useState({}); 
 
+  // Tabs and Filters for detail popup
+  const [activeTab, setActiveTab] = useState('shirts');
+  const [yearFilter, setYearFilter] = useState('ทั้งหมด');
+
+  // Log Filters
   const [logFilterExam, setLogFilterExam] = useState('ทั้งหมด');
   const [logFilterAction, setLogFilterAction] = useState('ทั้งหมด');
 
+  // Form States for adding new exam
   const [examName, setExamName] = useState('');
-  const [shirtRows, setShirtRows] = useState([{ type: '', sizes: [{ label: 'XS', qty: 0 }, { label: 'S', qty: 0 }, { label: 'M', qty: 0 }, { label: 'L', qty: 0 }, { label: 'XL', qty: 0 }, { label: 'XXL', qty: 0 }, { label: '3XL', qty: 0 }] }]);
-  const [medals, setMedals] = useState({ ทอง: 0, เงิน: 0, ทองแดง: 0 });
-  const [covers, setCovers] = useState([{ color: '', qty: 0 }]);
+
+  // Inline Forms States (Inside popup)
+  const [showAddShirtForm, setShowAddShirtForm] = useState(false);
+  const [newShirtName, setNewShirtName] = useState('');
+  const [newShirtSizes, setNewShirtSizes] = useState({ XS: 0, S: 0, M: 0, L: 0, XL: 0, XXL: 0, '3XL': 0 });
+
+  const [showAddMedalForm, setShowAddMedalForm] = useState(false);
+  const [newMedalName, setNewMedalName] = useState('');
+  const [newMedalQty, setNewMedalQty] = useState(0);
+
+  const [showAddCoverForm, setShowAddCoverForm] = useState(false);
+  const [newCoverNameForm, setNewCoverNameForm] = useState('');
+  const [newCoverQty, setNewCoverQty] = useState(0);
 
   useEffect(() => {
     const q = query(collection(db, "exams"), orderBy("updatedAt", "desc"));
@@ -53,23 +61,41 @@ function App() {
     return () => { unsubscribe(); unsubscribeLogs(); };
   }, [selectedExam]);
 
-  const addShirtRow = () => {
-    setShirtRows([...shirtRows, { type: '', sizes: [{ label: 'XS', qty: 0 }, { label: 'S', qty: 0 }, { label: 'M', qty: 0 }, { label: 'L', qty: 0 }, { label: 'XL', qty: 0 }, { label: 'XXL', qty: 0 }, { label: '3XL', qty: 0 }] }]);
-  };
-  const removeShirtRow = (idx) => setShirtRows(shirtRows.filter((_, i) => i !== idx));
-  const addSizeToRow = (idx) => {
-    const n = [...shirtRows];
-    n[idx].sizes.push({ label: '', qty: 0 });
-    setShirtRows(n);
-  };
-  const removeSizeFromRow = (rIdx, sIdx) => {
-    const n = [...shirtRows];
-    n[rIdx].sizes = n[rIdx].sizes.filter((_, i) => i !== sIdx);
-    setShirtRows(n);
+  const resetInlineForms = () => {
+    setShowAddShirtForm(false);
+    setNewShirtName('');
+    setNewShirtSizes({ XS: 0, S: 0, M: 0, L: 0, XL: 0, XXL: 0, '3XL': 0 });
+
+    setShowAddMedalForm(false);
+    setNewMedalName('');
+    setNewMedalQty(0);
+
+    setShowAddCoverForm(false);
+    setNewCoverNameForm('');
+    setNewCoverQty(0);
   };
 
   const sortSizes = (sizeObj) => {
     return Object.entries(sizeObj).sort(([a], [b]) => (SIZE_RANK[a.toUpperCase()] || 99) - (SIZE_RANK[b.toUpperCase()] || 99));
+  };
+
+  const sortMedals = (medalsObj) => {
+    return Object.entries(medalsObj).sort(([a], [b]) => {
+      const rankA = MEDAL_ORDER[a] || 99;
+      const rankB = MEDAL_ORDER[b] || 99;
+      if (rankA !== rankB) return rankA - rankB;
+      return a.localeCompare(b);
+    });
+  };
+
+  const extractYearsFromKeys = (keys) => {
+    const yearsSet = new Set();
+    keys.forEach(key => {
+      const match = key.match(/\b(20\d{2})\b/);
+      if (match) yearsSet.add(match[1]);
+    });
+    const sortedYears = Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
+    return ['ทั้งหมด', ...sortedYears];
   };
 
   const handleDeleteExam = async (e, exam) => {
@@ -115,25 +141,195 @@ function App() {
     setAdjustAmount({ ...adjustAmount, [amountKey]: '' });
   };
 
-  const addNewCoverInDetail = async () => {
+  // ==================== SHIRTS CRUD ====================
+  const handleSizeQtyChange = (size, value) => {
+    setNewShirtSizes(prev => ({ ...prev, [size]: Number(value) }));
+  };
+
+  const handleCreateShirt = async (e) => {
+    e.preventDefault();
     if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
-    const newColorName = prompt("ระบุชื่อสี/แบบ Cover ที่ต้องการเพิ่ม:");
-    if (!newColorName) return;
+    if (!newShirtName.trim()) return alert("กรุณากรอกชื่อรุ่นเสื้อ");
+    
+    const shirtKey = newShirtName.trim();
+    if (selectedExam.shirts?.[shirtKey]) return alert("มีแบบเสื้อชื่อนี้อยู่แล้ว");
 
     const examRef = doc(db, "exams", selectedExam.id);
-    const updatedCovers = { ...selectedExam.covers, [newColorName]: 0 };
+    const updatedShirts = { 
+      ...selectedExam.shirts, 
+      [shirtKey]: { ...newShirtSizes } 
+    };
+
+    await updateDoc(examRef, { shirts: updatedShirts, updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "logs"), {
+      examName: selectedExam.examName, action: "เพิ่มแบบเสื้อ",
+      details: `เพิ่มแบบเสื้อใหม่: "${shirtKey}"`, operator, timestamp: serverTimestamp()
+    });
+
+    // Reset Form
+    setNewShirtName('');
+    setNewShirtSizes({ XS: 0, S: 0, M: 0, L: 0, XL: 0, XXL: 0, '3XL': 0 });
+    setShowAddShirtForm(false);
+  };
+
+  const renameShirtInDetail = async (oldName) => {
+    if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
+    const newName = prompt(`เปลี่ยนชื่อแบบเสื้อ "${oldName}" เป็น:`, oldName);
+    if (!newName || newName === oldName) return;
+    if (selectedExam.shirts?.[newName]) return alert("มีแบบเสื้อชื่อนี้อยู่แล้ว");
+
+    const examRef = doc(db, "exams", selectedExam.id);
+    const updatedShirts = { ...selectedExam.shirts };
+    updatedShirts[newName] = updatedShirts[oldName];
+    delete updatedShirts[oldName];
+
+    await updateDoc(examRef, { shirts: updatedShirts, updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "logs"), {
+      examName: selectedExam.examName, action: "เปลี่ยนชื่อเสื้อ",
+      details: `เปลี่ยนชื่อเสื้อจาก "${oldName}" เป็น "${newName}"`, operator, timestamp: serverTimestamp()
+    });
+  };
+
+  const deleteShirtInDetail = async (type) => {
+    if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
+    if (!window.confirm(`⚠️ ยืนยันการลบแบบเสื้อ "${type}" และสต็อกไซส์ทั้งหมดในรุ่นนี้?`)) return;
+
+    const examRef = doc(db, "exams", selectedExam.id);
+    const updatedShirts = { ...selectedExam.shirts };
+    delete updatedShirts[type];
+
+    await updateDoc(examRef, { shirts: updatedShirts, updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "logs"), {
+      examName: selectedExam.examName, action: "ลบแบบเสื้อ",
+      details: `ลบแบบเสื้อ: "${type}" ออกจากระบบ`, operator, timestamp: serverTimestamp()
+    });
+  };
+
+  const addSizeToShirtInDetail = async (type) => {
+    if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
+    const sizeLabel = prompt(`เพิ่มไซส์สำหรับเสื้อ "${type}" (เช่น 4XL, เด็ก, 5XL):`);
+    if (!sizeLabel) return;
+    const normalizedSize = sizeLabel.toUpperCase().trim();
+    if (selectedExam.shirts[type]?.[normalizedSize] !== undefined) return alert("มีไซส์นี้ในรุ่นนี้อยู่แล้ว");
+
+    const examRef = doc(db, "exams", selectedExam.id);
+    const updatedShirts = { ...selectedExam.shirts };
+    updatedShirts[type] = { ...updatedShirts[type], [normalizedSize]: 0 };
+
+    await updateDoc(examRef, { shirts: updatedShirts, updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "logs"), {
+      examName: selectedExam.examName, action: "เพิ่มไซส์เสื้อ",
+      details: `เพิ่มไซส์ "${normalizedSize}" ในเสื้อรุ่น "${type}"`, operator, timestamp: serverTimestamp()
+    });
+  };
+
+  const deleteSizeFromShirtInDetail = async (type, sizeLabel) => {
+    if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
+    if (!window.confirm(`ลบไซส์ "${sizeLabel}" ของเสื้อรุ่น "${type}"?`)) return;
+
+    const examRef = doc(db, "exams", selectedExam.id);
+    const updatedShirts = { ...selectedExam.shirts };
+    delete updatedShirts[type][sizeLabel];
+
+    await updateDoc(examRef, { shirts: updatedShirts, updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "logs"), {
+      examName: selectedExam.examName, action: "ลบไซส์เสื้อ",
+      details: `ลบไซส์ "${sizeLabel}" ในเสื้อรุ่น "${type}"`, operator, timestamp: serverTimestamp()
+    });
+  };
+
+  // ==================== MEDALS CRUD ====================
+  const handleCreateMedal = async (e) => {
+    e.preventDefault();
+    if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
+    if (!newMedalName.trim()) return alert("กรุณากรอกชื่อเหรียญรางวัล");
+    
+    const medalKey = newMedalName.trim();
+    if (selectedExam.medals?.[medalKey] !== undefined) return alert("มีเหรียญประเภทนี้อยู่แล้ว");
+
+    const examRef = doc(db, "exams", selectedExam.id);
+    const updatedMedals = { 
+      ...selectedExam.medals, 
+      [medalKey]: Number(newMedalQty) 
+    };
+
+    await updateDoc(examRef, { medals: updatedMedals, updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "logs"), {
+      examName: selectedExam.examName, action: "เพิ่มประเภทเหรียญ",
+      details: `เพิ่มเหรียญแบบใหม่: "${medalKey}" จำนวน ${newMedalQty} เหรียญ`, operator, timestamp: serverTimestamp()
+    });
+
+    // Reset Form
+    setNewMedalName('');
+    setNewMedalQty(0);
+    setShowAddMedalForm(false);
+  };
+
+  const renameMedalInDetail = async (oldName) => {
+    if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
+    const newName = prompt(`เปลี่ยนชื่อประเภทเหรียญ "${oldName}" เป็น:`, oldName);
+    if (!newName || newName === oldName) return;
+    if (selectedExam.medals?.[newName] !== undefined) return alert("มีเหรียญประเภทนี้อยู่แล้ว");
+
+    const examRef = doc(db, "exams", selectedExam.id);
+    const updatedMedals = { ...selectedExam.medals };
+    updatedMedals[newName] = updatedMedals[oldName];
+    delete updatedMedals[oldName];
+
+    await updateDoc(examRef, { medals: updatedMedals, updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "logs"), {
+      examName: selectedExam.examName, action: "เปลี่ยนชื่อเหรียญ",
+      details: `เปลี่ยนชื่อเหรียญจาก "${oldName}" เป็น "${newName}"`, operator, timestamp: serverTimestamp()
+    });
+  };
+
+  const deleteMedalInDetail = async (medalName) => {
+    if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
+    if (!window.confirm(`⚠️ ยืนยันการลบประเภทเหรียญ "${medalName}" และจำนวนสต็อกทั้งหมด?`)) return;
+
+    const examRef = doc(db, "exams", selectedExam.id);
+    const updatedMedals = { ...selectedExam.medals };
+    delete updatedMedals[medalName];
+
+    await updateDoc(examRef, { medals: updatedMedals, updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "logs"), {
+      examName: selectedExam.examName, action: "ลบประเภทเหรียญ",
+      details: `ลบเหรียญประเภท: "${medalName}"`, operator, timestamp: serverTimestamp()
+    });
+  };
+
+  // ==================== COVERS CRUD ====================
+  const handleCreateCover = async (e) => {
+    e.preventDefault();
+    if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
+    if (!newCoverNameForm.trim()) return alert("กรุณากรอกชื่อสี/แบบ Cover");
+    
+    const coverKey = newCoverNameForm.trim();
+    if (selectedExam.covers?.[coverKey] !== undefined) return alert("มี Cover แบบนี้อยู่แล้ว");
+
+    const examRef = doc(db, "exams", selectedExam.id);
+    const updatedCovers = { 
+      ...selectedExam.covers, 
+      [coverKey]: Number(newCoverQty) 
+    };
 
     await updateDoc(examRef, { covers: updatedCovers, updatedAt: serverTimestamp() });
     await addDoc(collection(db, "logs"), {
-      examName: selectedExam.examName, action: "เพิ่มช่อง Cover",
-      details: `เพิ่ม Cover แบบใหม่: "${newColorName}" ในหน้ารายละเอียด`, operator, timestamp: serverTimestamp()
+      examName: selectedExam.examName, action: "เพิ่มแบบ Cover",
+      details: `เพิ่ม Cover แบบใหม่: "${coverKey}" จำนวน ${newCoverQty} แผ่น`, operator, timestamp: serverTimestamp()
     });
+
+    // Reset Form
+    setNewCoverNameForm('');
+    setNewCoverQty(0);
+    setShowAddCoverForm(false);
   };
 
   const renameCover = async (oldName) => {
     const newName = editCoverName[oldName];
     if (!newName || oldName === newName) return;
     if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งาน");
+    if (selectedExam.covers?.[newName] !== undefined) return alert("มี Cover แบบนี้อยู่แล้ว");
 
     const examRef = doc(db, "exams", selectedExam.id);
     const updatedCovers = { ...selectedExam.covers };
@@ -154,27 +350,40 @@ function App() {
     });
   };
 
-  const handleFullAdd = async () => {
+  const deleteCoverInDetail = async (colorName) => {
+    if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
+    if (!window.confirm(`⚠️ ยืนยันการลบ Cover "${colorName}" และสต็อกทั้งหมด?`)) return;
+
+    const examRef = doc(db, "exams", selectedExam.id);
+    const updatedCovers = { ...selectedExam.covers };
+    delete updatedCovers[colorName];
+
+    await updateDoc(examRef, { covers: updatedCovers, updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "logs"), {
+      examName: selectedExam.examName, action: "ลบแบบ Cover",
+      details: `ลบ Cover แบบ: "${colorName}"`, operator, timestamp: serverTimestamp()
+    });
+  };
+
+  // ==================== EXAM CREATION ====================
+  const handleCreateExam = async () => {
     if (!examName || !operator) return alert("กรุณาระบุชื่อรายการและชื่อผู้ใช้งาน");
     const docId = `${examName}_${Date.now()}`;
-    const shirtMap = {};
-    shirtRows.forEach(r => {
-      if (!r.type) return;
-      const sMap = {};
-      r.sizes.forEach(s => { if (s.label) sMap[s.label] = Number(s.qty); });
-      shirtMap[r.type] = sMap;
-    });
-    const coverMap = {};
-    covers.forEach(c => { if (c.color) coverMap[c.color] = Number(c.qty); });
-
     try {
-      await setDoc(doc(db, "exams", docId), { examName, shirts: shirtMap, medals, covers: coverMap, updatedAt: serverTimestamp() });
+      await setDoc(doc(db, "exams", docId), { 
+        examName, 
+        shirts: {}, 
+        medals: { "ทอง": 0, "เงิน": 0, "ทองแดง": 0 }, 
+        covers: {}, 
+        updatedAt: serverTimestamp() 
+      });
       await addDoc(collection(db, "logs"), {
-        examName, action: "เพิ่มรายการใหม่", details: `เพิ่มข้อมูลของ ${examName} โดยมีเสื้อ ${Object.keys(shirtMap).length} แบบ เหรียญ และ cover`, operator, timestamp: serverTimestamp()
+        examName, action: "เพิ่มรายการใหม่", 
+        details: `สร้างการ์ดรายการสอบใหม่: "${examName}"`, 
+        operator, timestamp: serverTimestamp()
       });
       setShowAddModal(false);
-      setExamName(''); setShirtRows([{ type: '', sizes: [{ label: 'XS', qty: 0 }, { label: 'S', qty: 0 }, { label: 'M', qty: 0 }, { label: 'L', qty: 0 }, { label: 'XL', qty: 0 }, { label: 'XXL', qty: 0 }, { label: '3XL', qty: 0 }] }]);
-      setMedals({ ทอง: 0, เงิน: 0, ทองแดง: 0 }); setCovers([{ color: '', qty: 0 }]);
+      setExamName('');
     } catch (e) { alert(e.message); }
   };
 
@@ -183,225 +392,518 @@ function App() {
   const renderAdjustUI = (category, subCategory, field) => {
     const key = `${category}-${subCategory}-${field}`;
     return (
-      <div style={quickEditContainer}>
-        <input type="number" placeholder="0" value={adjustAmount[key] || ''} onChange={e => setAdjustAmount({...adjustAmount, [key]: e.target.value})} style={newQuickInput} />
-        <div style={buttonGroup}>
-          <button onClick={() => quickAdjust(category, subCategory, field, 'add')} style={newAddBtn}><ArrowUpCircle size={12}/> เพิ่ม</button>
-          <button onClick={() => quickAdjust(category, subCategory, field, 'sub')} style={newSubBtn}><ArrowDownCircle size={12}/> ลด</button>
+      <div className="adjust-stock-control">
+        <input 
+          type="number" 
+          placeholder="0" 
+          value={adjustAmount[key] || ''} 
+          onChange={e => setAdjustAmount({...adjustAmount, [key]: e.target.value})} 
+          className="adjust-input" 
+        />
+        <div className="adjust-btns">
+          <button onClick={() => quickAdjust(category, subCategory, field, 'add')} className="btn-adjust add">
+            <ArrowUpCircle size={12}/> เพิ่ม
+          </button>
+          <button onClick={() => quickAdjust(category, subCategory, field, 'sub')} className="btn-adjust sub">
+            <ArrowDownCircle size={12}/> ลด
+          </button>
         </div>
       </div>
     );
   };
 
+  const getYearFilterUI = (keys) => {
+    const years = extractYearsFromKeys(keys);
+    if (years.length <= 1) return null;
+    return (
+      <div className="year-filter-group">
+        <span className="year-filter-label">เลือกปี:</span>
+        {years.map(y => (
+          <button
+            key={y}
+            className={`btn-year ${yearFilter === y ? 'active' : ''} ${y === 'ทั้งหมด' ? 'active-all' : ''}`}
+            onClick={() => setYearFilter(y)}
+          >
+            {y}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  // Render detail tab content
+  const renderDetailTabContent = () => {
+    if (!selectedExam) return null;
+
+    if (activeTab === 'shirts') {
+      const shirtEntries = Object.entries(selectedExam.shirts || {});
+      const filteredShirts = shirtEntries.filter(([type]) => {
+        const matchYear = yearFilter === 'ทั้งหมด' || type.includes(yearFilter);
+        return matchYear;
+      });
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {isEditMode && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '5px' }}>
+              {!showAddShirtForm ? (
+                <button onClick={() => setShowAddShirtForm(true)} className="btn-add-small" style={{ fontSize: '1rem' }}>
+                  <PlusCircle size={18} /> เพิ่มแบบเสื้อใหม่
+                </button>
+              ) : null}
+            </div>
+          )}
+
+          {/* Inline Form to Add New Shirt */}
+          {isEditMode && showAddShirtForm && (
+            <form onSubmit={handleCreateShirt} className="inline-form-card" style={{ borderLeft: '5px solid var(--theme-shirt)' }}>
+              <h4><PlusCircle size={16} /> เพิ่มแบบเสื้อใหม่</h4>
+              <div className="inline-form-row">
+                <input
+                  type="text"
+                  placeholder="ชื่อรุ่นเสื้อ เช่น เสื้อวิ่ง 2026"
+                  value={newShirtName}
+                  onChange={e => setNewShirtName(e.target.value)}
+                  className="filter-input"
+                  style={{ flex: 1, minWidth: '200px' }}
+                  required
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-light)' }}>ระบุจำนวนสต็อกเริ่มต้นในแต่ละไซส์ (ถ้ามี):</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                  {Object.keys(newShirtSizes).map(size => (
+                    <div key={size} className="size-input-card">
+                      <span style={{ width: '45px', textAlign: 'center', fontWeight: 'bold', fontSize: '0.85rem' }}>{size}</span>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        min="0"
+                        value={newShirtSizes[size] || ''}
+                        onChange={e => handleSizeQtyChange(size, e.target.value)}
+                        style={{ width: '55px', border: 'none', borderLeft: '1px solid var(--color-border)', textAlign: 'center', outline: 'none' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="inline-form-actions">
+                <button type="button" onClick={() => setShowAddShirtForm(false)} className="btn-form-cancel">ยกเลิก</button>
+                <button type="submit" className="btn-form-save"><Save size={16} /> บันทึกแบบเสื้อ</button>
+              </div>
+            </form>
+          )}
+
+          {filteredShirts.length > 0 ? (
+            filteredShirts.map(([type, sizeObj]) => {
+              const totalInType = Object.values(sizeObj).reduce((a, b) => a + (Number(b) || 0), 0);
+              return (
+                <div key={type} className="category-block" style={{ backgroundColor: 'var(--theme-shirt)' }}>
+                  <div className="block-title-row">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <p className="block-title"><Shirt size={20} /> เสื้อ: {type}</p>
+                      {isEditMode && (
+                        <>
+                          <button onClick={() => renameShirtInDetail(type)} className="btn-icon-action" title="เปลี่ยนชื่อแบบเสื้อ">
+                            <Edit3 size={14} />
+                          </button>
+                          <button onClick={() => deleteShirtInDetail(type)} className="btn-icon-action delete" title="ลบแบบเสื้อรุ่นนี้">
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      {isEditMode && (
+                        <button onClick={() => addSizeToShirtInDetail(type)} className="btn-add-small" style={{ fontSize: '0.85rem' }}>
+                          + เพิ่มไซส์พิเศษ
+                        </button>
+                      )}
+                      <div className="badge-total">รวมทั้งหมด: {totalInType} ตัว</div>
+                    </div>
+                  </div>
+                  <div className="items-grid">
+                    {sortSizes(sizeObj).map(([size, qty]) => (
+                      <div key={size} className="item-card-inner">
+                        {isEditMode && (
+                          <button 
+                            onClick={() => deleteSizeFromShirtInDetail(type, size)} 
+                            className="btn-delete-size" 
+                            title={`ลบไซส์ ${size}`}
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                        <small className="item-label num-font">{size}</small>
+                        <div className="item-value num-font">{qty}</div>
+                        {isEditMode && renderAdjustUI('shirts', type, size)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-light)' }}>
+              ไม่พบข้อมูลเสื้อตามเงื่อนไขที่เลือก
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (activeTab === 'medals') {
+      const medalEntries = sortMedals(selectedExam.medals || { "ทอง": 0, "เงิน": 0, "ทองแดง": 0 });
+      const totalMedals = medalEntries.reduce((a, [_, b]) => a + (Number(b) || 0), 0);
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          {isEditMode && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '5px' }}>
+              {!showAddMedalForm ? (
+                <button onClick={() => setShowAddMedalForm(true)} className="btn-add-small" style={{ fontSize: '1rem' }}>
+                  <PlusCircle size={18} /> เพิ่มประเภทเหรียญ
+                </button>
+              ) : null}
+            </div>
+          )}
+
+          {/* Inline Form to Add New Medal */}
+          {isEditMode && showAddMedalForm && (
+            <form onSubmit={handleCreateMedal} className="inline-form-card" style={{ borderLeft: '5px solid var(--theme-medal)' }}>
+              <h4><PlusCircle size={16} /> เพิ่มประเภทเหรียญรางวัล</h4>
+              <div className="inline-form-row">
+                <input
+                  type="text"
+                  placeholder="ชื่อประเภทเหรียญ เช่น เหรียญชมเชย, ทองพิเศษ"
+                  value={newMedalName}
+                  onChange={e => setNewMedalName(e.target.value)}
+                  className="filter-input"
+                  style={{ flex: 2, minWidth: '200px' }}
+                  required
+                />
+                <input
+                  type="number"
+                  placeholder="จำนวนเริ่มต้น"
+                  min="0"
+                  value={newMedalQty || ''}
+                  onChange={e => setNewMedalQty(e.target.value)}
+                  className="filter-input"
+                  style={{ flex: 1, minWidth: '100px' }}
+                />
+              </div>
+              <div className="inline-form-actions">
+                <button type="button" onClick={() => setShowAddMedalForm(false)} className="btn-form-cancel">ยกเลิก</button>
+                <button type="submit" className="btn-form-save"><Save size={16} /> บันทึกเหรียญใหม่</button>
+              </div>
+            </form>
+          )}
+
+          <div className="category-block" style={{ backgroundColor: 'var(--theme-medal)' }}>
+            <div className="block-title-row">
+              <p className="block-title"><Award size={20} /> เหรียญรางวัล</p>
+              <div className="badge-total">รวมทั้งหมด: {totalMedals} เหรียญ</div>
+            </div>
+            <div className="items-grid">
+              {medalEntries.length > 0 ? (
+                medalEntries.map(([t, q]) => (
+                  <div key={t} className="item-card-inner">
+                    <small className="item-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {t}
+                      {isEditMode && (
+                        <span style={{ display: 'inline-flex', gap: '2px' }}>
+                          <button onClick={() => renameMedalInDetail(t)} style={{ background:'none', border:'none', cursor:'pointer', padding:'2px', color:'var(--color-text-light)' }} title="เปลี่ยนชื่อ">
+                            <Edit3 size={10} />
+                          </button>
+                          <button onClick={() => deleteMedalInDetail(t)} style={{ background:'none', border:'none', cursor:'pointer', padding:'2px', color:'#FF6B6B' }} title="ลบ">
+                            <Trash2 size={10} />
+                          </button>
+                        </span>
+                      )}
+                    </small>
+                    <div className="item-value num-font">{q}</div>
+                    {isEditMode && renderAdjustUI('medals', null, t)}
+                  </div>
+                ))
+              ) : (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '20px', color: 'var(--color-text-light)' }}>
+                  ไม่มีข้อมูลเหรียญรางวัล
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTab === 'covers') {
+      const coverEntries = Object.entries(selectedExam.covers || {});
+      const filteredCovers = coverEntries.filter(([c]) => {
+        const matchYear = yearFilter === 'ทั้งหมด' || c.includes(yearFilter);
+        return matchYear;
+      });
+      const totalCovers = coverEntries.reduce((a, [_, b]) => a + (Number(b) || 0), 0);
+
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          {isEditMode && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '5px' }}>
+              {!showAddCoverForm ? (
+                <button onClick={() => setShowAddCoverForm(true)} className="btn-add-small" style={{ fontSize: '1rem' }}>
+                  <PlusCircle size={18} /> เพิ่มแบบ Cover
+                </button>
+              ) : null}
+            </div>
+          )}
+
+          {/* Inline Form to Add New Cover */}
+          {isEditMode && showAddCoverForm && (
+            <form onSubmit={handleCreateCover} className="inline-form-card" style={{ borderLeft: '5px solid var(--theme-cover)' }}>
+              <h4><PlusCircle size={16} /> เพิ่ม Cover Page ใหม่</h4>
+              <div className="inline-form-row">
+                <input
+                  type="text"
+                  placeholder="ชื่อสี/แบบปก เช่น ปกสีชมพู 2026"
+                  value={newCoverNameForm}
+                  onChange={e => setNewCoverNameForm(e.target.value)}
+                  className="filter-input"
+                  style={{ flex: 2, minWidth: '200px' }}
+                  required
+                />
+                <input
+                  type="number"
+                  placeholder="จำนวนเริ่มต้น"
+                  min="0"
+                  value={newCoverQty || ''}
+                  onChange={e => setNewCoverQty(e.target.value)}
+                  className="filter-input"
+                  style={{ flex: 1, minWidth: '100px' }}
+                />
+              </div>
+              <div className="inline-form-actions">
+                <button type="button" onClick={() => setShowAddCoverForm(false)} className="btn-form-cancel">ยกเลิก</button>
+                <button type="submit" className="btn-form-save"><Save size={16} /> บันทึก Cover ใหม่</button>
+              </div>
+            </form>
+          )}
+
+          <div className="category-block" style={{ backgroundColor: 'var(--theme-cover)' }}>
+            <div className="block-title-row">
+              <p className="block-title"><FileText size={20} /> Cover Pages</p>
+              <div className="badge-total">รวมทั้งหมด: {totalCovers} แผ่น</div>
+            </div>
+            <div className="items-grid">
+              {filteredCovers.length > 0 ? (
+                filteredCovers.map(([c, q]) => (
+                  <div key={c} className="item-card-inner">
+                    {isEditMode ? (
+                      <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:'6px', width:'100%', position: 'relative'}}>
+                        <button 
+                          onClick={() => deleteCoverInDetail(c)} 
+                          className="btn-delete-size" 
+                          title={`ลบ Cover ${c}`}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                        <input 
+                          className="filter-input" 
+                          style={{ padding: '6px', fontSize: '0.85rem', textAlign: 'center', width: '85%' }} 
+                          value={editCoverName[c] !== undefined ? editCoverName[c] : c} 
+                          onChange={(e) => setEditCoverName({...editCoverName, [c]: e.target.value})} 
+                        />
+                        <button onClick={() => renameCover(c)} className="btn-add-small" style={{ fontSize: '0.75rem' }}><CheckCircle2 size={12}/> ยืนยันชื่อ</button>
+                      </div>
+                    ) : <small className="item-label">{c}</small>}
+                    <div className="item-value num-font" style={{ marginTop: isEditMode ? '5px' : '0' }}>{q}</div>
+                    {isEditMode && renderAdjustUI('covers', null, c)}
+                  </div>
+                ))
+              ) : (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '20px', color: 'var(--color-text-light)' }}>
+                  ไม่พบข้อมูล Cover Pages ตามเงื่อนไขที่เลือก
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
-    <div style={{ backgroundColor: COLORS.bg, minHeight: '100vh', fontFamily: "'Kanit', sans-serif", paddingBottom: '50px' }}>
-      <div style={{ backgroundColor: COLORS.header, padding: '40px 20px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-        <h2 style={{ margin: 0 }}>📦 ระบบเช็คของ</h2>
-        <div style={{display:'flex', justifyContent:'center', gap:'12px', marginTop:'20px'}}>
-            <button onClick={() => setShowAddModal(true)} style={mainAddBtn}><PlusCircle size={20} /> เพิ่มรายการใหม่</button>
-            <button onClick={() => setShowLogs(true)} style={historyBtn}><History size={20} /> ดูประวัติ (Log)</button>
+    <div style={{ minHeight: '100vh', paddingBottom: '50px' }}>
+      {/* Header */}
+      <div className="app-header">
+        <h1>📦 ระบบเช็คของ</h1>
+        <div className="header-actions">
+          <button onClick={() => setShowAddModal(true)} className="btn-header"><PlusCircle size={20} /> เพิ่มรายการใหม่</button>
+          <button onClick={() => setShowLogs(true)} className="btn-header"><History size={20} /> ดูประวัติ (Log)</button>
         </div>
       </div>
 
-      <div style={{ maxWidth: '1200px', margin: '30px auto', padding: '0 20px' }}>
-        <div style={operatorBar}>👤 ผู้ใช้งาน: <input placeholder="ชื่อของคุณ..." value={operator} onChange={e => setOperator(e.target.value)} style={minimalInput} /></div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+      {/* Main Container */}
+      <div className="app-container">
+        {/* Operator Bar */}
+        <div className="operator-bar">
+          <span>👤 ผู้ใช้งาน:</span> 
+          <input placeholder="ชื่อของคุณ..." value={operator} onChange={e => setOperator(e.target.value)} className="operator-input" />
+        </div>
+
+        {/* Exams Grid */}
+        <div className="cards-grid">
           {exams.map(exam => (
-            <div key={exam.id} onClick={() => { setSelectedExam(exam); setIsEditMode(false); }} style={examCard}>
-              <div style={{display:'flex', justifyContent:'space-between'}}>
-                <div style={iconBox}><Package size={24} color="#666" /></div>
-                <button onClick={(e) => handleDeleteExam(e, exam)} style={deleteBtnCard}><Trash2 size={16} /></button>
+            <div 
+              key={exam.id} 
+              onClick={() => { 
+                setSelectedExam(exam); 
+                setIsEditMode(false); 
+                setActiveTab('shirts'); 
+                setYearFilter('ทั้งหมด'); 
+                resetInlineForms();
+              }} 
+              className="exam-card"
+            >
+              <div className="card-header-row">
+                <div className="card-icon"><Package size={24} /></div>
+                <button onClick={(e) => handleDeleteExam(e, exam)} className="btn-card-delete"><Trash2 size={16} /></button>
               </div>
-              <h3 style={{ margin: '15px 0 5px' }}>{exam.examName}</h3>
-              <p style={{color:'#888', fontSize:'13px'}}>ล่าสุด: {exam.updatedAt?.toDate().toLocaleString('th-TH')}</p>
+              <h3>{exam.examName}</h3>
+              <p className="updated-time num-font">ล่าสุด: {exam.updatedAt?.toDate().toLocaleString('th-TH')}</p>
             </div>
           ))}
         </div>
       </div>
 
+      {/* Detail Modal Overlay */}
       {selectedExam && (
-        <div style={modalOverlay}>
-          <div style={modalContentWide}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '25px', borderBottom: '2px solid #f8f8f8', paddingBottom: '15px' }}>
-              <h2 style={{margin:0}}>{selectedExam.examName}</h2>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button onClick={() => setIsEditMode(!isEditMode)} style={{...editBtn, backgroundColor: isEditMode ? COLORS.shirt : '#f0f0f0'}}><Edit3 size={18} /> {isEditMode ? 'ปิดการแก้ไข' : 'แก้ไขจำนวน'}</button>
-                <button onClick={() => setSelectedExam(null)} style={closeBtn}><X size={32} /></button>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>{selectedExam.examName}</h2>
+              <div className="modal-header-actions">
+                <button 
+                  onClick={() => setIsEditMode(!isEditMode)} 
+                  className="btn-edit-mode" 
+                  style={{ backgroundColor: isEditMode ? 'var(--theme-shirt)' : '#f0f0f0' }}
+                >
+                  <Edit3 size={18} /> {isEditMode ? 'ปิดการแก้ไข' : 'แก้ไขจำนวน'}
+                </button>
+                <button onClick={() => setSelectedExam(null)} className="btn-close"><X size={32} /></button>
               </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-              {(Object.keys(selectedExam.shirts || {}).length > 0 ? Object.entries(selectedExam.shirts) : [['ไม่มีข้อมูลเสื้อ', DEFAULT_SIZES]]).map(([type, sizeObj]) => {
-                const totalInType = Object.values(sizeObj).reduce((a, b) => a + (Number(b) || 0), 0);
-                return (
-                  <div key={type} style={{ ...blockStyle, backgroundColor: COLORS.shirt }}>
-                    <div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px', alignItems:'center'}}>
-                      <p style={sectionTitle}>👕 เสื้อ: {type}</p>
-                      <div style={totalBadge}>รวมทั้งหมด: {totalInType} ตัว</div>
-                    </div>
-                    <div style={wideRowLayout}>
-                      {sortSizes(sizeObj).map(([size, qty]) => (
-                        <div key={size} style={itemCellWide}>
-                          <small style={labelStyle}>{size}</small>
-                          <div style={cellValue}>{qty}</div>
-                          {isEditMode && renderAdjustUI('shirts', type, size)}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
 
-              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'25px'}}>
-                <div style={{ ...blockStyle, backgroundColor: COLORS.medal }}>
-                    <div style={{display:'flex', justifyContent:'space-between', marginBottom:'10px', alignItems:'center'}}>
-                        <p style={sectionTitle}>🏅 เหรียญรางวัล</p>
-                        <div style={totalBadge}>
-                            รวมทั้งหมด: {Object.values(selectedExam.medals || {}).reduce((a, b) => a + (Number(b) || 0), 0)} เหรียญ
-                        </div>
-                    </div>
-                    <div style={wideRowLayout}>{Object.entries(selectedExam.medals || {"ทอง":0,"เงิน":0,"ทองแดง":0}).map(([t, q]) => (
-                      <div key={t} style={itemCellWide}><small style={labelStyle}>{t}</small><div style={cellValue}>{q}</div>{isEditMode && renderAdjustUI('medals', null, t)}</div>
-                    ))}</div>
-                </div>
-
-                <div style={{ ...blockStyle, backgroundColor: COLORS.cover }}>
-                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}>
-                        <p style={sectionTitle}>📄 Cover Pages</p>
-                        {isEditMode && <button onClick={addNewCoverInDetail} style={addSmallBtn}><PlusCircle size={16}/> เพิ่มแบบ Cover</button>}
-                    </div>
-                    <div style={wideRowLayout}>
-                      {Object.entries(selectedExam.covers || {}).length > 0 ? Object.entries(selectedExam.covers).map(([c, q]) => (
-                        <div key={c} style={itemCellWide}>
-                          {isEditMode ? (
-                            <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:'5px', width:'100%'}}>
-                                <input style={renameInput} value={editCoverName[c] !== undefined ? editCoverName[c] : c} onChange={(e) => setEditCoverName({...editCoverName, [c]: e.target.value})} />
-                                <button onClick={() => renameCover(c)} style={renameBtn}><CheckCircle2 size={12}/> ยันยันชื่อ</button>
-                            </div>
-                          ) : <small style={labelStyle}>{c}</small>}
-                          <div style={cellValue}>{q}</div>
-                          {isEditMode && renderAdjustUI('covers', null, c)}
-                        </div>
-                      )) : (
-                        <div style={itemCellWide}><small style={labelStyle}>-</small><div style={cellValue}>0</div>{isEditMode && renderAdjustUI('covers', null, 'ไม่มีชื่อ')}</div>
-                      )}
-                    </div>
-                </div>
-              </div>
+            {/* Modal Tabs */}
+            <div className="modal-tabs">
+              <button 
+                className={`tab-btn ${activeTab === 'shirts' ? 'active' : ''}`} 
+                onClick={() => { setActiveTab('shirts'); setYearFilter('ทั้งหมด'); resetInlineForms(); }}
+              >
+                <Shirt size={18} /> เสื้อ
+              </button>
+              <button 
+                className={`tab-btn ${activeTab === 'medals' ? 'active' : ''}`} 
+                onClick={() => { setActiveTab('medals'); setYearFilter('ทั้งหมด'); resetInlineForms(); }}
+              >
+                <Award size={18} /> เหรียญรางวัล
+              </button>
+              <button 
+                className={`tab-btn ${activeTab === 'covers' ? 'active' : ''}`} 
+                onClick={() => { setActiveTab('covers'); setYearFilter('ทั้งหมด'); resetInlineForms(); }}
+              >
+                <FileText size={18} /> Cover Pages
+              </button>
             </div>
+
+            {/* Smart Filter Bar (Only show if year filters exist) */}
+            {((activeTab === 'shirts' && extractYearsFromKeys(Object.keys(selectedExam.shirts || {})).length > 1) ||
+              (activeTab === 'covers' && extractYearsFromKeys(Object.keys(selectedExam.covers || {})).length > 1)) && (
+              <div className="filter-bar">
+                {activeTab === 'shirts' && getYearFilterUI(Object.keys(selectedExam.shirts || {}))}
+                {activeTab === 'covers' && getYearFilterUI(Object.keys(selectedExam.covers || {}))}
+              </div>
+            )}
+
+            {/* Tab Contents */}
+            {renderDetailTabContent()}
           </div>
         </div>
       )}
 
+      {/* Add New Exam Modal */}
       {showAddModal && (
-        <div style={modalOverlay}>
-          <div style={modalContentWide}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '25px' }}><h3>➕ เพิ่มรายการใหม่</h3><button onClick={() => setShowAddModal(false)} style={closeBtn}><X size={32}/></button></div>
-            <input placeholder="ชื่อรายการสอบ" value={examName} onChange={e => setExamName(e.target.value)} style={{...inputStyle, width:'100%', marginBottom:'20px'}} />
-            <div style={{ ...blockStyle, backgroundColor: COLORS.shirt, marginBottom:'20px' }}>
-              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'15px'}}><p style={sectionTitle}>👕 เสื้อ (เพิ่มแบบและไซส์เอง)</p><button onClick={addShirtRow} style={addSmallBtn}><PlusCircle size={18}/> เพิ่มแบบเสื้อ</button></div>
-              {shirtRows.map((row, idx) => (
-                <div key={idx} style={dynamicRowContainer}>
-                  <div style={{display:'flex', gap:'10px', alignItems:'center', marginBottom:'10px'}}>
-                    <input placeholder="รุ่นเสื้อ" value={row.type} onChange={e => { const n = [...shirtRows]; n[idx].type = e.target.value; setShirtRows(n); }} style={{...inputStyle, flex:1}} />
-                    <button onClick={() => addSizeToRow(idx)} style={addSmallBtn}>+ไซส์</button>
-                    {shirtRows.length > 1 && <button onClick={() => removeShirtRow(idx)} style={{color:'#FFB3BA', border:'none', background:'none', cursor:'pointer'}}><Trash2 size={20}/></button>}
-                  </div>
-                  <div style={wideRowLayout}>{row.sizes.map((s, sIdx) => (
-                    <div key={sIdx} style={sizeInputGroup}>
-                      <input placeholder="ไซส์" value={s.label} onChange={e => { const n = [...shirtRows]; n[idx].sizes[sIdx].label = e.target.value; setShirtRows(n); }} style={sizeLabelIn} />
-                      <input type="number" value={s.qty} onChange={e => { const n = [...shirtRows]; n[idx].sizes[sIdx].qty = Number(e.target.value); setShirtRows(n); }} style={sizeQtyIn} />
-                      <button onClick={() => removeSizeFromRow(idx, sIdx)} style={removeSizeBtn}><X size={12}/></button>
-                    </div>
-                  ))}</div>
-                </div>
-              ))}
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2 className="modal-add-title">➕ เพิ่มรายการใหม่</h2>
+              <button onClick={() => setShowAddModal(false)} className="btn-close"><X size={32}/></button>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'25px' }}>
-                <div style={{ ...blockStyle, backgroundColor: COLORS.medal }}><p style={sectionTitle}>🏅 เหรียญรางวัล</p>
-                    <div style={wideRowLayout}>{['ทอง', 'เงิน', 'ทองแดง'].map(t => <div key={t} style={itemCellWide}><small>{t}</small><input type="number" value={medals[t]} onChange={e => setMedals({...medals, [t]: Number(e.target.value)})} style={miniInput} /></div>)}</div>
-                </div>
-                <div style={{ ...blockStyle, backgroundColor: COLORS.cover }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom:'15px' }}><p style={sectionTitle}>📄 Cover Pages</p><button onClick={() => setCovers([...covers, { color: '', qty: 0 }])} style={addSmallBtn}><PlusCircle size={18}/> เพิ่มสี</button></div>
-                    {covers.map((c, i) => (
-                        <div key={i} style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
-                          <input placeholder="สี" value={c.color} onChange={e => { const n = [...covers]; n[i].color = e.target.value; setCovers(n); }} style={{...miniInput, width:'120px', textAlign:'left'}} />
-                          <input type="number" value={c.qty} onChange={e => { const n = [...covers]; n[i].qty = Number(e.target.value); setCovers(n); }} style={miniInput} />
-                          <button onClick={() => setCovers(covers.filter((_,idx)=>idx!==i))} style={{border:'none', background:'none', color:'#FFB3BA', cursor:'pointer'}}><Trash2 size={18}/></button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-            <button onClick={handleFullAdd} style={saveFullBtn}><Save size={24} /> บันทึกรายการใหม่</button>
+            
+            <input 
+              placeholder="ระบุชื่อรายการสอบ/การแข่งขัน" 
+              value={examName} 
+              onChange={e => setExamName(e.target.value)} 
+              className="form-input-large" 
+            />
+
+            <button onClick={handleCreateExam} className="btn-add-submit"><Save size={20} /> สร้างการ์ดรายการสอบ</button>
           </div>
         </div>
       )}
 
+      {/* Logs Modal */}
       {showLogs && (
-        <div style={modalOverlay}>
-            <div style={{...modalContentWide, maxWidth:'1000px'}}>
-                <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}><h2><History /> ประวัติสต็อก</h2><button onClick={() => setShowLogs(false)} style={closeBtn}><X size={32}/></button></div>
-                <div style={filterBar}>
-                    <select value={logFilterExam} onChange={e => setLogFilterExam(e.target.value)} style={selectFilter}>
-                        <option value="ทั้งหมด">รายการสอบ: ทั้งหมด</option>
-                        {[...new Set(logs.map(l => l.examName))].map(n => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                    <select value={logFilterAction} onChange={e => setLogFilterAction(e.target.value)} style={selectFilter}>
-                        <option value="ทั้งหมด">ประเภท: ทั้งหมด</option>
-                        <option value="เพิ่มรายการใหม่">เพิ่มรายการใหม่</option>
-                        <option value="เพิ่มสต็อก">เพิ่มสต็อก</option>
-                        <option value="ลดสต็อก">ลดสต็อก</option>
-                        <option value="เปลี่ยนชื่อ Cover">เปลี่ยนชื่อ Cover</option>
-                        <option value="เพิ่มช่อง Cover">เพิ่มช่อง Cover</option>
-                        <option value="ลบรายการ">ลบรายการ</option>
-                    </select>
-                </div>
-                <div style={logListScroll}><table style={{width:'100%', borderCollapse:'collapse'}}>
-                    <thead><tr style={{textAlign:'left', background:'#f9f9f9'}}><th style={{padding:'12px'}}>เวลา</th><th>รายการ</th><th>ผู้ทำ</th><th>การกระทำ</th></tr></thead>
-                    <tbody>{filteredLogs.map(log => (<tr key={log.id} style={{borderBottom:'1px solid #f0f0f0'}}><td style={{padding:'12px', fontSize:'12px'}}>{log.timestamp?.toDate().toLocaleString()}</td><td>{log.examName}</td><td>{log.operator}</td><td>{log.action} - {log.details}</td></tr>))}</tbody>
-                </table></div>
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '1000px' }}>
+            <div className="modal-header">
+              <h2><History /> ประวัติสต็อก</h2>
+              <button onClick={() => setShowLogs(false)} className="btn-close"><X size={32}/></button>
             </div>
+
+            <div className="log-filter-row">
+              <select value={logFilterExam} onChange={e => setLogFilterExam(e.target.value)} className="log-select">
+                <option value="ทั้งหมด">รายการสอบ: ทั้งหมด</option>
+                {[...new Set(logs.map(l => l.examName))].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+              <select value={logFilterAction} onChange={e => setLogFilterAction(e.target.value)} className="log-select">
+                <option value="ทั้งหมด">ประเภท: ทั้งหมด</option>
+                <option value="เพิ่มรายการใหม่">เพิ่มรายการใหม่</option>
+                <option value="เพิ่มสต็อก">เพิ่มสต็อก</option>
+                <option value="ลดสต็อก">ลดสต็อก</option>
+                <option value="เปลี่ยนชื่อ Cover">เปลี่ยนชื่อ Cover</option>
+                <option value="เพิ่มช่อง Cover">เพิ่มช่อง Cover</option>
+                <option value="ลบรายการ">ลบรายการ</option>
+              </select>
+            </div>
+
+            <div className="log-table-container scroll-container">
+              <table className="log-table">
+                <thead>
+                  <tr>
+                    <th>เวลา</th>
+                    <th>รายการ</th>
+                    <th>ผู้ทำ</th>
+                    <th>รายละเอียดการกระทำ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLogs.map(log => (
+                    <tr key={log.id}>
+                      <td className="num-font" style={{ fontSize: '0.8rem' }}>{log.timestamp?.toDate().toLocaleString()}</td>
+                      <td>{log.examName}</td>
+                      <td>{log.operator}</td>
+                      <td>{log.action} - {log.details}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
-
-const totalBadge = { background:'#fff', padding:'4px 12px', borderRadius:'10px', fontSize:'13px', fontWeight:'bold', color:'#333', boxShadow:'0 1px 3px rgba(0,0,0,0.1)' };
-const renameInput = { width:'80px', padding:'3px', borderRadius:'5px', border:'1px solid #ccc', fontSize:'11px', textAlign:'center', outline:'none' };
-const renameBtn = { background:COLORS.success, color:'#fff', border:'none', borderRadius:'4px', padding:'2px 6px', fontSize:'9px', cursor:'pointer' };
-const quickEditContainer = { marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', maxWidth: '125px' };
-const newQuickInput = { width: '110px', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', textAlign: 'center', fontSize: '14px', outline: 'none' };
-const buttonGroup = { display: 'flex', gap: '4px', width: '100%' };
-const newAddBtn = { flex: 1, background: COLORS.header, border: 'none', padding: '8px 4px', borderRadius: '8px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' };
-const newSubBtn = { flex: 1, background: COLORS.shirt, border: 'none', padding: '8px 4px', borderRadius: '8px', cursor: 'pointer', fontSize: '11px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' };
-const deleteBtnCard = { background: 'rgba(255,179,186,0.2)', border: 'none', borderRadius: '10px', padding: '8px', color: '#FFB3BA', cursor: 'pointer' };
-const operatorBar = { display:'flex', alignItems:'center', gap:'10px', marginBottom:'25px', background:'#fff', padding:'15px 25px', borderRadius:'20px', width:'fit-content', boxShadow:'0 2px 8px rgba(0,0,0,0.03)' };
-const minimalInput = { border: 'none', borderBottom: '2px solid #E2F0CB', background: 'none', padding: '5px', outline: 'none', width: '180px', fontSize:'16px' };
-const examCard = { backgroundColor: '#fff', padding: '25px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', cursor: 'pointer', textAlign: 'center' };
-const iconBox = { backgroundColor: COLORS.header, width: '45px', height: '45px', borderRadius: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center' };
-const modalOverlay = { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.45)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' };
-const modalContentWide = { backgroundColor: '#fff', padding: '40px', borderRadius: '40px', width: '95%', maxWidth: '1250px', maxHeight: '92vh', overflowY: 'auto' };
-const wideRowLayout = { display: 'flex', flexWrap: 'wrap', gap: '10px' };
-const itemCellWide = { flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.6)', padding: '12px', borderRadius: '25px', minWidth: '100px' };
-const labelStyle = { color: '#888', fontWeight: 'bold', fontSize: '12px', marginBottom:'5px' };
-const cellValue = { fontSize: '28px', fontWeight: 'bold', color: '#444' };
-const blockStyle = { padding: '25px', borderRadius: '35px' };
-const sectionTitle = { margin: '0', fontWeight: 'bold', fontSize: '16px', color: 'rgba(0,0,0,0.6)' };
-const inputStyle = { padding: '12px 18px', borderRadius: '15px', border: '1px solid #eee', fontSize: '16px', outline:'none' };
-const miniInput = { width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #fff', textAlign: 'center', outline:'none' };
-const saveFullBtn = { width: '100%', padding: '20px', borderRadius: '25px', border: 'none', backgroundColor: COLORS.success, color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: '18px', marginTop:'15px' };
-const mainAddBtn = { padding: '14px 25px', borderRadius: '30px', border: 'none', backgroundColor: '#fff', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: '8px' };
-const historyBtn = { padding: '14px 25px', borderRadius: '30px', border: 'none', backgroundColor: '#fff', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', gap: '8px' };
-const addSmallBtn = { border: 'none', background: 'none', color: COLORS.success, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontWeight:'bold' };
-const editBtn = { border: 'none', padding: '10px 20px', borderRadius: '15px', cursor: 'pointer', fontWeight: 'bold', display:'flex', alignItems:'center', gap:'8px' };
-const closeBtn = { border: 'none', background: 'none', cursor: 'pointer', color: '#ccc' };
-const logListScroll = { maxHeight: '450px', overflowY: 'auto' };
-const dynamicRowContainer = { backgroundColor:'rgba(255,255,255,0.4)', padding:'20px', borderRadius:'20px', marginBottom:'15px' };
-const sizeInputGroup = { display:'flex', alignItems:'center', background:'#fff', borderRadius:'10px', padding:'5px', border:'1px solid #eee' };
-const sizeLabelIn = { width:'50px', border:'none', borderRight:'1px solid #eee', textAlign:'center', outline:'none', fontWeight:'bold' };
-const sizeQtyIn = { width:'55px', border:'none', textAlign:'center', outline:'none' };
-const removeSizeBtn = { background:'#FFB3BA', border:'none', borderRadius:'50%', width:'18px', height:'18px', display:'flex', alignItems:'center', justifyContent:'center', marginLeft:'5px', color:'#fff' };
-const filterBar = { background:'#f9f9f9', padding:'15px', borderRadius:'15px', marginBottom:'15px', display:'flex', gap:'10px' };
-const selectFilter = { padding:'8px', borderRadius:'10px', border:'1px solid #ddd' };
 
 export default App;
