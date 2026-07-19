@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebase';
 import { collection, onSnapshot, setDoc, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, addDoc } from 'firebase/firestore';
-import { 
-  History, X, Save, Edit3, Package, PlusCircle, Trash2, CheckCircle2, 
-  ArrowUpCircle, ArrowDownCircle, Award, Shirt, FileText 
+import {
+  History, X, Save, Edit3, Package, PlusCircle, Trash2, CheckCircle2,
+  ArrowUpCircle, ArrowDownCircle, Award, Shirt, FileText
 } from 'lucide-react';
 
 const SIZE_RANK = { "XS": 1, "S": 2, "M": 3, "L": 4, "XL": 5, "XXL": 6, "3XL": 7, "4XL": 8, "5XL": 9 };
@@ -18,7 +18,7 @@ function App() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [operator, setOperator] = useState('');
   const [adjustAmount, setAdjustAmount] = useState({});
-  const [editCoverName, setEditCoverName] = useState({}); 
+  const [editCoverName, setEditCoverName] = useState({});
 
   // Tabs and Filters for detail popup
   const [activeTab, setActiveTab] = useState('shirts');
@@ -128,10 +128,10 @@ function App() {
     const amountKey = `${category}-${subCategory}-${field}`;
     const amountToChange = Number(adjustAmount[amountKey] || 1);
     const examRef = doc(db, "exams", selectedExam.id);
-    
+
     let updatedVal;
     const currentVal = subCategory ? (selectedExam[category][subCategory]?.[field] || 0) : (selectedExam[category]?.[field] || 0);
-    
+
     if (mode === 'add') updatedVal = currentVal + amountToChange;
     else updatedVal = Math.max(0, currentVal - amountToChange);
 
@@ -201,14 +201,14 @@ function App() {
     e.preventDefault();
     if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
     if (!newShirtName.trim()) return alert("กรุณากรอกชื่อรุ่นเสื้อ");
-    
+
     const shirtKey = newShirtName.trim();
     if (selectedExam.shirts?.[shirtKey]) return alert("มีแบบเสื้อชื่อนี้อยู่แล้ว");
 
     const examRef = doc(db, "exams", selectedExam.id);
-    const updatedShirts = { 
-      ...selectedExam.shirts, 
-      [shirtKey]: { ...newShirtSizes } 
+    const updatedShirts = {
+      ...selectedExam.shirts,
+      [shirtKey]: { ...newShirtSizes }
     };
 
     await updateDoc(examRef, { shirts: updatedShirts, updatedAt: serverTimestamp() });
@@ -321,14 +321,14 @@ function App() {
     e.preventDefault();
     if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
     if (!newMedalName.trim()) return alert("กรุณากรอกชื่อรุ่น/ปีเหรียญรางวัล");
-    
+
     const medalKey = newMedalName.trim();
     if (selectedExam.medals?.[medalKey]) return alert("มีเหรียญรางวัลชื่อนี้อยู่แล้ว");
 
     const examRef = doc(db, "exams", selectedExam.id);
-    const updatedMedals = { 
-      ...selectedExam.medals, 
-      [medalKey]: { ...newMedalSubTypes } 
+    const updatedMedals = {
+      ...selectedExam.medals,
+      [medalKey]: { ...newMedalSubTypes }
     };
 
     await updateDoc(examRef, { medals: updatedMedals, updatedAt: serverTimestamp() });
@@ -429,14 +429,14 @@ function App() {
     e.preventDefault();
     if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
     if (!newCoverNameForm.trim()) return alert("กรุณากรอกชื่อสี/แบบ Cover");
-    
+
     const coverKey = newCoverNameForm.trim();
     if (selectedExam.covers?.[coverKey] !== undefined) return alert("มี Cover แบบนี้อยู่แล้ว");
 
     const examRef = doc(db, "exams", selectedExam.id);
-    const updatedCovers = { 
-      ...selectedExam.covers, 
-      [coverKey]: Number(newCoverQty) 
+    const updatedCovers = {
+      ...selectedExam.covers,
+      [coverKey]: Number(newCoverQty)
     };
 
     await updateDoc(examRef, { covers: updatedCovers, updatedAt: serverTimestamp() });
@@ -460,7 +460,7 @@ function App() {
     const examRef = doc(db, "exams", selectedExam.id);
     const updatedCovers = { ...selectedExam.covers };
     const value = updatedCovers[oldName];
-    
+
     delete updatedCovers[oldName];
     updatedCovers[newName] = value;
 
@@ -470,9 +470,9 @@ function App() {
       details: `เปลี่ยนชื่อจาก "${oldName}" เป็น "${newName}"`, operator, timestamp: serverTimestamp()
     });
     setEditCoverName(prev => {
-        const n = {...prev};
-        delete n[oldName];
-        return n;
+      const n = { ...prev };
+      delete n[oldName];
+      return n;
     });
   };
 
@@ -496,16 +496,16 @@ function App() {
     if (!examName || !operator) return alert("กรุณาระบุชื่อรายการและชื่อผู้ใช้งาน");
     const docId = `${examName}_${Date.now()}`;
     try {
-      await setDoc(doc(db, "exams", docId), { 
-        examName, 
-        shirts: {}, 
+      await setDoc(doc(db, "exams", docId), {
+        examName,
+        shirts: {},
         medals: {}, // Initialize empty
-        covers: {}, 
-        updatedAt: serverTimestamp() 
+        covers: {},
+        updatedAt: serverTimestamp()
       });
       await addDoc(collection(db, "logs"), {
-        examName, action: "เพิ่มรายการใหม่", 
-        details: `สร้างการ์ดรายการสอบใหม่: "${examName}"`, 
+        examName, action: "เพิ่มรายการใหม่",
+        details: `สร้างการ์ดรายการสอบใหม่: "${examName}"`,
         operator, timestamp: serverTimestamp()
       });
       setShowAddModal(false);
@@ -519,19 +519,19 @@ function App() {
     const key = `${category}-${subCategory}-${field}`;
     return (
       <div className="adjust-stock-control">
-        <input 
-          type="number" 
-          placeholder="0" 
-          value={adjustAmount[key] || ''} 
-          onChange={e => setAdjustAmount({...adjustAmount, [key]: e.target.value})} 
-          className="adjust-input" 
+        <input
+          type="number"
+          placeholder="0"
+          value={adjustAmount[key] || ''}
+          onChange={e => setAdjustAmount({ ...adjustAmount, [key]: e.target.value })}
+          className="adjust-input"
         />
         <div className="adjust-btns">
           <button onClick={() => quickAdjust(category, subCategory, field, 'add')} className="btn-adjust add">
-            <ArrowUpCircle size={12}/> เพิ่ม
+            <ArrowUpCircle size={12} /> เพิ่ม
           </button>
           <button onClick={() => quickAdjust(category, subCategory, field, 'sub')} className="btn-adjust sub">
-            <ArrowDownCircle size={12}/> ลด
+            <ArrowDownCircle size={12} /> ลด
           </button>
         </div>
       </div>
@@ -607,10 +607,10 @@ function App() {
                       />
                     </div>
                   ))}
-                  <button 
-                    type="button" 
-                    onClick={addCustomSizeInForm} 
-                    className="btn-add-small" 
+                  <button
+                    type="button"
+                    onClick={addCustomSizeInForm}
+                    className="btn-add-small"
                     style={{ fontSize: '0.85rem', padding: '6px 12px', backgroundColor: '#f0f0f0', borderRadius: '10px' }}
                   >
                     + ไซส์พิเศษ
@@ -681,9 +681,9 @@ function App() {
                     {sortSizes(sizeObj).map(([size, qty]) => (
                       <div key={size} className="item-card-inner">
                         {isEditMode && (
-                          <button 
-                            onClick={() => deleteSizeFromShirtInDetail(type, size)} 
-                            className="btn-delete-size" 
+                          <button
+                            onClick={() => deleteSizeFromShirtInDetail(type, size)}
+                            className="btn-delete-size"
                             title={`ลบไซส์ ${size}`}
                           >
                             <X size={12} />
@@ -757,10 +757,10 @@ function App() {
                       />
                     </div>
                   ))}
-                  <button 
-                    type="button" 
-                    onClick={addCustomMedalTypeInForm} 
-                    className="btn-add-small" 
+                  <button
+                    type="button"
+                    onClick={addCustomMedalTypeInForm}
+                    className="btn-add-small"
                     style={{ fontSize: '0.85rem', padding: '6px 12px', backgroundColor: '#f0f0f0', borderRadius: '10px' }}
                   >
                     + ประเภทพิเศษ
@@ -831,9 +831,9 @@ function App() {
                     {sortMedals(medalMap).map(([type, qty]) => (
                       <div key={type} className="item-card-inner">
                         {isEditMode && (
-                          <button 
-                            onClick={() => deleteSubMedalTypeInDetail(name, type)} 
-                            className="btn-delete-size" 
+                          <button
+                            onClick={() => deleteSubMedalTypeInDetail(name, type)}
+                            className="btn-delete-size"
                             title={`ลบประเภท ${type}`}
                           >
                             <X size={12} />
@@ -918,23 +918,23 @@ function App() {
                 filteredCovers.map(([c, q]) => (
                   <div key={c} className="item-card-inner">
                     {isEditMode && (
-                      <button 
-                        onClick={() => deleteCoverInDetail(c)} 
-                        className="btn-delete-size" 
+                      <button
+                        onClick={() => deleteCoverInDetail(c)}
+                        className="btn-delete-size"
                         title={`ลบ Cover ${c}`}
                       >
                         <Trash2 size={12} />
                       </button>
                     )}
                     {isEditMode ? (
-                      <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:'6px', width:'100%', position: 'relative'}}>
-                        <input 
-                          className="filter-input" 
-                          style={{ padding: '6px', fontSize: '0.85rem', textAlign: 'center', width: '85%' }} 
-                          value={editCoverName[c] !== undefined ? editCoverName[c] : c} 
-                          onChange={(e) => setEditCoverName({...editCoverName, [c]: e.target.value})} 
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', width: '100%', position: 'relative' }}>
+                        <input
+                          className="filter-input"
+                          style={{ padding: '6px', fontSize: '0.85rem', textAlign: 'center', width: '85%' }}
+                          value={editCoverName[c] !== undefined ? editCoverName[c] : c}
+                          onChange={(e) => setEditCoverName({ ...editCoverName, [c]: e.target.value })}
                         />
-                        <button onClick={() => renameCover(c)} className="btn-add-small" style={{ fontSize: '0.75rem' }}><CheckCircle2 size={12}/> ยืนยันชื่อ</button>
+                        <button onClick={() => renameCover(c)} className="btn-add-small" style={{ fontSize: '0.75rem' }}><CheckCircle2 size={12} /> ยืนยันชื่อ</button>
                       </div>
                     ) : <small className="item-label">{c}</small>}
                     <div className="item-value num-font" style={{ marginTop: isEditMode ? '5px' : '0' }}>{q}</div>
@@ -970,23 +970,23 @@ function App() {
       <div className="app-container">
         {/* Operator Bar */}
         <div className="operator-bar">
-          <span>👤 ผู้ใช้งาน:</span> 
+          <span>👤 ผู้ใช้งาน:</span>
           <input placeholder="ชื่อของคุณ..." value={operator} onChange={e => setOperator(e.target.value)} className="operator-input" />
         </div>
 
         {/* Exams Grid */}
         <div className="cards-grid">
           {exams.map(exam => (
-            <div 
-              key={exam.id} 
-              onClick={() => { 
-                setSelectedExam(exam); 
-                setIsEditMode(false); 
-                setActiveTab('shirts'); 
-                setYearFilter('ทั้งหมด'); 
+            <div
+              key={exam.id}
+              onClick={() => {
+                setSelectedExam(exam);
+                setIsEditMode(false);
+                setActiveTab('shirts');
+                setYearFilter('ทั้งหมด');
                 resetInlineForms();
                 setTempExamName(exam.examName); // Init temp exam name on modal open
-              }} 
+              }}
               className="exam-card"
             >
               <div className="card-header-row">
@@ -1026,12 +1026,12 @@ function App() {
                 <h2>{selectedExam.examName}</h2>
               )}
               <div className="modal-header-actions">
-                <button 
-                  onClick={() => setIsEditMode(!isEditMode)} 
-                  className="btn-edit-mode" 
+                <button
+                  onClick={() => setIsEditMode(!isEditMode)}
+                  className="btn-edit-mode"
                   style={{ backgroundColor: isEditMode ? 'var(--theme-shirt)' : '#f0f0f0' }}
                 >
-                  <Edit3 size={18} /> {isEditMode ? 'ปิดการแก้ไข' : 'แก้ไขจำนวน'}
+                  <Edit3 size={18} /> {isEditMode ? 'ปิดโหมดแก้ไข' : 'โหมดแก้ไข'}
                 </button>
                 <button onClick={() => setSelectedExam(null)} className="btn-close"><X size={32} /></button>
               </div>
@@ -1039,20 +1039,20 @@ function App() {
 
             {/* Modal Tabs */}
             <div className="modal-tabs">
-              <button 
-                className={`tab-btn ${activeTab === 'shirts' ? 'active' : ''}`} 
+              <button
+                className={`tab-btn ${activeTab === 'shirts' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('shirts'); setYearFilter('ทั้งหมด'); resetInlineForms(); }}
               >
                 <Shirt size={18} /> เสื้อ
               </button>
-              <button 
-                className={`tab-btn ${activeTab === 'medals' ? 'active' : ''}`} 
+              <button
+                className={`tab-btn ${activeTab === 'medals' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('medals'); setYearFilter('ทั้งหมด'); resetInlineForms(); }}
               >
                 <Award size={18} /> เหรียญรางวัล
               </button>
-              <button 
-                className={`tab-btn ${activeTab === 'covers' ? 'active' : ''}`} 
+              <button
+                className={`tab-btn ${activeTab === 'covers' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('covers'); setYearFilter('ทั้งหมด'); resetInlineForms(); }}
               >
                 <FileText size={18} /> Cover Pages
@@ -1062,11 +1062,11 @@ function App() {
             {/* Smart Filter Bar (Only show if year filters exist) */}
             {((activeTab === 'medals' && extractYearsFromKeys(Object.keys(selectedExam.medals || {})).length > 1) ||
               (activeTab === 'covers' && extractYearsFromKeys(Object.keys(selectedExam.covers || {})).length > 1)) && (
-              <div className="filter-bar">
-                {activeTab === 'medals' && getYearFilterUI(Object.keys(selectedExam.medals || {}))}
-                {activeTab === 'covers' && getYearFilterUI(Object.keys(selectedExam.covers || {}))}
-              </div>
-            )}
+                <div className="filter-bar">
+                  {activeTab === 'medals' && getYearFilterUI(Object.keys(selectedExam.medals || {}))}
+                  {activeTab === 'covers' && getYearFilterUI(Object.keys(selectedExam.covers || {}))}
+                </div>
+              )}
 
             {/* Tab Contents */}
             {renderDetailTabContent()}
@@ -1080,14 +1080,14 @@ function App() {
           <div className="modal-content" style={{ maxWidth: '500px' }}>
             <div className="modal-header">
               <h2 className="modal-add-title">➕ เพิ่มรายการใหม่</h2>
-              <button onClick={() => setShowAddModal(false)} className="btn-close"><X size={32}/></button>
+              <button onClick={() => setShowAddModal(false)} className="btn-close"><X size={32} /></button>
             </div>
-            
-            <input 
-              placeholder="ระบุชื่อรายการสอบ/การแข่งขัน" 
-              value={examName} 
-              onChange={e => setExamName(e.target.value)} 
-              className="form-input-large" 
+
+            <input
+              placeholder="ระบุชื่อรายการสอบ/การแข่งขัน"
+              value={examName}
+              onChange={e => setExamName(e.target.value)}
+              className="form-input-large"
             />
 
             <button onClick={handleCreateExam} className="btn-add-submit"><Save size={20} /> สร้างการ์ดรายการสอบ</button>
@@ -1101,7 +1101,7 @@ function App() {
           <div className="modal-content" style={{ maxWidth: '1000px' }}>
             <div className="modal-header">
               <h2><History /> ประวัติสต็อก</h2>
-              <button onClick={() => setShowLogs(false)} className="btn-close"><X size={32}/></button>
+              <button onClick={() => setShowLogs(false)} className="btn-close"><X size={32} /></button>
             </div>
 
             <div className="log-filter-row">
