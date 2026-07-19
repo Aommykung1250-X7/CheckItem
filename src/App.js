@@ -47,6 +47,13 @@ function App() {
   // Temporary Exam Name for Inline Rename in Popup Header
   const [tempExamName, setTempExamName] = useState('');
 
+  // Inline renaming states for Shirt Model Names and Medal Names
+  const [editShirtName, setEditShirtName] = useState({});
+  const [editingShirtKey, setEditingShirtKey] = useState(null);
+
+  const [editMedalName, setEditMedalName] = useState({});
+  const [editingMedalKey, setEditingMedalKey] = useState(null);
+
   useEffect(() => {
     // Sort by examName alphabetically asc so cards remain in stable order
     const q = query(collection(db, "exams"), orderBy("examName", "asc"));
@@ -77,6 +84,9 @@ function App() {
     setShowAddCoverForm(false);
     setNewCoverNameForm('');
     setNewCoverQty(0);
+
+    setEditingShirtKey(null);
+    setEditingMedalKey(null);
   };
 
   const sortSizes = (sizeObj) => {
@@ -213,22 +223,37 @@ function App() {
     setShowAddShirtForm(false);
   };
 
-  const renameShirtInDetail = async (oldName) => {
-    if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
-    const newName = prompt(`เปลี่ยนชื่อแบบเสื้อ "${oldName}" เป็น:`, oldName);
-    if (!newName || newName === oldName) return;
-    if (selectedExam.shirts?.[newName]) return alert("มีแบบเสื้อชื่อนี้อยู่แล้ว");
+  const handleRenameShirt = async (oldName) => {
+    const newName = editShirtName[oldName]?.trim();
+    if (!newName || oldName === newName) {
+      setEditingShirtKey(null);
+      return;
+    }
+    if (!operator) {
+      alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
+      setEditingShirtKey(null);
+      return;
+    }
+    if (selectedExam.shirts?.[newName]) {
+      alert("มีแบบเสื้อชื่อนี้อยู่แล้ว");
+      return;
+    }
 
-    const examRef = doc(db, "exams", selectedExam.id);
-    const updatedShirts = { ...selectedExam.shirts };
-    updatedShirts[newName] = updatedShirts[oldName];
-    delete updatedShirts[oldName];
+    try {
+      const examRef = doc(db, "exams", selectedExam.id);
+      const updatedShirts = { ...selectedExam.shirts };
+      updatedShirts[newName] = updatedShirts[oldName];
+      delete updatedShirts[oldName];
 
-    await updateDoc(examRef, { shirts: updatedShirts, updatedAt: serverTimestamp() });
-    await addDoc(collection(db, "logs"), {
-      examName: selectedExam.examName, action: "เปลี่ยนชื่อเสื้อ",
-      details: `เปลี่ยนชื่อเสื้อจาก "${oldName}" เป็น "${newName}"`, operator, timestamp: serverTimestamp()
-    });
+      await updateDoc(examRef, { shirts: updatedShirts, updatedAt: serverTimestamp() });
+      await addDoc(collection(db, "logs"), {
+        examName: selectedExam.examName, action: "เปลี่ยนชื่อเสื้อ",
+        details: `เปลี่ยนชื่อเสื้อจาก "${oldName}" เป็น "${newName}"`, operator, timestamp: serverTimestamp()
+      });
+      setEditingShirtKey(null);
+    } catch (e) {
+      alert(e.message);
+    }
   };
 
   const deleteShirtInDetail = async (type) => {
@@ -318,22 +343,37 @@ function App() {
     setShowAddMedalForm(false);
   };
 
-  const renameMedalInDetail = async (oldName) => {
-    if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
-    const newName = prompt(`เปลี่ยนชื่อรุ่นเหรียญรางวัล "${oldName}" เป็น:`, oldName);
-    if (!newName || newName === oldName) return;
-    if (selectedExam.medals?.[newName]) return alert("มีรุ่นเหรียญรางวัลชื่อนี้อยู่แล้ว");
+  const handleRenameMedal = async (oldName) => {
+    const newName = editMedalName[oldName]?.trim();
+    if (!newName || oldName === newName) {
+      setEditingMedalKey(null);
+      return;
+    }
+    if (!operator) {
+      alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
+      setEditingMedalKey(null);
+      return;
+    }
+    if (selectedExam.medals?.[newName]) {
+      alert("มีรุ่นเหรียญรางวัลชื่อนี้อยู่แล้ว");
+      return;
+    }
 
-    const examRef = doc(db, "exams", selectedExam.id);
-    const updatedMedals = { ...selectedExam.medals };
-    updatedMedals[newName] = updatedMedals[oldName];
-    delete updatedMedals[oldName];
+    try {
+      const examRef = doc(db, "exams", selectedExam.id);
+      const updatedMedals = { ...selectedExam.medals };
+      updatedMedals[newName] = updatedMedals[oldName];
+      delete updatedMedals[oldName];
 
-    await updateDoc(examRef, { medals: updatedMedals, updatedAt: serverTimestamp() });
-    await addDoc(collection(db, "logs"), {
-      examName: selectedExam.examName, action: "เปลี่ยนชื่อเหรียญ",
-      details: `เปลี่ยนชื่อเหรียญรางวัลจาก "${oldName}" เป็น "${newName}"`, operator, timestamp: serverTimestamp()
-    });
+      await updateDoc(examRef, { medals: updatedMedals, updatedAt: serverTimestamp() });
+      await addDoc(collection(db, "logs"), {
+        examName: selectedExam.examName, action: "เปลี่ยนชื่อเหรียญ",
+        details: `เปลี่ยนชื่อเหรียญรางวัลจาก "${oldName}" เป็น "${newName}"`, operator, timestamp: serverTimestamp()
+      });
+      setEditingMedalKey(null);
+    } catch (e) {
+      alert(e.message);
+    }
   };
 
   const deleteMedalInDetail = async (medalName) => {
@@ -595,15 +635,40 @@ function App() {
                 <div key={type} className="category-block" style={{ backgroundColor: 'var(--theme-shirt)' }}>
                   <div className="block-title-row">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <p className="block-title"><Shirt size={20} /> เสื้อ: {type}</p>
-                      {isEditMode && (
+                      <Shirt size={20} />
+                      {editingShirtKey === type ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input
+                            type="text"
+                            className="inline-rename-input"
+                            style={{ fontSize: '1.05rem', width: '200px', fontWeight: 'bold' }}
+                            value={editShirtName[type] !== undefined ? editShirtName[type] : type}
+                            onChange={e => setEditShirtName({ ...editShirtName, [type]: e.target.value })}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleRenameShirt(type);
+                            }}
+                            autoFocus
+                          />
+                          <button type="button" onClick={() => handleRenameShirt(type)} className="btn-add-small" style={{ fontSize: '0.8rem' }}>
+                            <CheckCircle2 size={12} /> ยืนยัน
+                          </button>
+                          <button type="button" onClick={() => setEditingShirtKey(null)} className="btn-add-small" style={{ fontSize: '0.8rem', color: 'var(--color-text-light)' }}>
+                            ยกเลิก
+                          </button>
+                        </div>
+                      ) : (
                         <>
-                          <button onClick={() => renameShirtInDetail(type)} className="btn-icon-action" title="เปลี่ยนชื่อแบบเสื้อ">
-                            <Edit3 size={14} />
-                          </button>
-                          <button onClick={() => deleteShirtInDetail(type)} className="btn-icon-action delete" title="ลบแบบเสื้อรุ่นนี้">
-                            <Trash2 size={14} />
-                          </button>
+                          <p className="block-title" style={{ margin: 0 }}>เสื้อ: {type}</p>
+                          {isEditMode && (
+                            <>
+                              <button onClick={() => { setEditingShirtKey(type); setEditShirtName({ ...editShirtName, [type]: type }); }} className="btn-icon-action" title="เปลี่ยนชื่อแบบเสื้อ">
+                                <Edit3 size={14} />
+                              </button>
+                              <button onClick={() => deleteShirtInDetail(type)} className="btn-icon-action delete" title="ลบแบบเสื้อรุ่นนี้">
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          )}
                         </>
                       )}
                     </div>
@@ -720,15 +785,40 @@ function App() {
                 <div key={name} className="category-block" style={{ backgroundColor: 'var(--theme-medal)' }}>
                   <div className="block-title-row">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <p className="block-title"><Award size={20} /> เหรียญ: {name}</p>
-                      {isEditMode && (
+                      <Award size={20} />
+                      {editingMedalKey === name ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input
+                            type="text"
+                            className="inline-rename-input"
+                            style={{ fontSize: '1.05rem', width: '200px', fontWeight: 'bold' }}
+                            value={editMedalName[name] !== undefined ? editMedalName[name] : name}
+                            onChange={e => setEditMedalName({ ...editMedalName, [name]: e.target.value })}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') handleRenameMedal(name);
+                            }}
+                            autoFocus
+                          />
+                          <button type="button" onClick={() => handleRenameMedal(name)} className="btn-add-small" style={{ fontSize: '0.85rem' }}>
+                            <CheckCircle2 size={12} /> ยืนยัน
+                          </button>
+                          <button type="button" onClick={() => setEditingMedalKey(null)} className="btn-add-small" style={{ fontSize: '0.85rem', color: 'var(--color-text-light)' }}>
+                            ยกเลิก
+                          </button>
+                        </div>
+                      ) : (
                         <>
-                          <button onClick={() => renameMedalInDetail(name)} className="btn-icon-action" title="เปลี่ยนชื่อเหรียญรางวัล">
-                            <Edit3 size={14} />
-                          </button>
-                          <button onClick={() => deleteMedalInDetail(name)} className="btn-icon-action delete" title="ลบเหรียญรางวัลรุ่นนี้">
-                            <Trash2 size={14} />
-                          </button>
+                          <p className="block-title" style={{ margin: 0 }}>เหรียญ: {name}</p>
+                          {isEditMode && (
+                            <>
+                              <button onClick={() => { setEditingMedalKey(name); setEditMedalName({ ...editMedalName, [name]: name }); }} className="btn-icon-action" title="เปลี่ยนชื่อเหรียญรางวัล">
+                                <Edit3 size={14} />
+                              </button>
+                              <button onClick={() => deleteMedalInDetail(name)} className="btn-icon-action delete" title="ลบเหรียญรางวัลรุ่นนี้">
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          )}
                         </>
                       )}
                     </div>
