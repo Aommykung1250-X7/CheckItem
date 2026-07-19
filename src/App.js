@@ -38,7 +38,7 @@ function App() {
 
   const [showAddMedalForm, setShowAddMedalForm] = useState(false);
   const [newMedalName, setNewMedalName] = useState('');
-  const [newMedalQty, setNewMedalQty] = useState(0);
+  const [newMedalSubTypes, setNewMedalSubTypes] = useState({ ทอง: 0, เงิน: 0, ทองแดง: 0 });
 
   const [showAddCoverForm, setShowAddCoverForm] = useState(false);
   const [newCoverNameForm, setNewCoverNameForm] = useState('');
@@ -68,7 +68,7 @@ function App() {
 
     setShowAddMedalForm(false);
     setNewMedalName('');
-    setNewMedalQty(0);
+    setNewMedalSubTypes({ ทอง: 0, เงิน: 0, ทองแดง: 0 });
 
     setShowAddCoverForm(false);
     setNewCoverNameForm('');
@@ -247,37 +247,49 @@ function App() {
   };
 
   // ==================== MEDALS CRUD ====================
+  const handleMedalSubQtyChange = (type, value) => {
+    setNewMedalSubTypes(prev => ({ ...prev, [type]: Number(value) }));
+  };
+
+  const addCustomMedalTypeInForm = () => {
+    const customType = prompt("ระบุประเภทเหรียญรางวัลพิเศษที่ต้องการเพิ่ม (เช่น ชมเชย, ทองพิเศษ):");
+    if (!customType) return;
+    const trimmed = customType.trim();
+    if (newMedalSubTypes[trimmed] !== undefined) return alert("มีเหรียญประเภทนี้อยู่ในแบบแล้ว");
+    setNewMedalSubTypes(prev => ({ ...prev, [trimmed]: 0 }));
+  };
+
   const handleCreateMedal = async (e) => {
     e.preventDefault();
     if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
-    if (!newMedalName.trim()) return alert("กรุณากรอกชื่อเหรียญรางวัล");
+    if (!newMedalName.trim()) return alert("กรุณากรอกชื่อรุ่น/ปีเหรียญรางวัล");
     
     const medalKey = newMedalName.trim();
-    if (selectedExam.medals?.[medalKey] !== undefined) return alert("มีเหรียญประเภทนี้อยู่แล้ว");
+    if (selectedExam.medals?.[medalKey]) return alert("มีเหรียญรางวัลชื่อนี้อยู่แล้ว");
 
     const examRef = doc(db, "exams", selectedExam.id);
     const updatedMedals = { 
       ...selectedExam.medals, 
-      [medalKey]: Number(newMedalQty) 
+      [medalKey]: { ...newMedalSubTypes } 
     };
 
     await updateDoc(examRef, { medals: updatedMedals, updatedAt: serverTimestamp() });
     await addDoc(collection(db, "logs"), {
-      examName: selectedExam.examName, action: "เพิ่มประเภทเหรียญ",
-      details: `เพิ่มเหรียญรางวัล: "${medalKey}" จำนวน ${newMedalQty} เหรียญ`, operator, timestamp: serverTimestamp()
+      examName: selectedExam.examName, action: "เพิ่มเหรียญรางวัล",
+      details: `เพิ่มเหรียญรางวัลใหม่: "${medalKey}"`, operator, timestamp: serverTimestamp()
     });
 
     // Reset Form
     setNewMedalName('');
-    setNewMedalQty(0);
+    setNewMedalSubTypes({ ทอง: 0, เงิน: 0, ทองแดง: 0 });
     setShowAddMedalForm(false);
   };
 
   const renameMedalInDetail = async (oldName) => {
     if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
-    const newName = prompt(`เปลี่ยนชื่อประเภทเหรียญ "${oldName}" เป็น:`, oldName);
+    const newName = prompt(`เปลี่ยนชื่อรุ่นเหรียญรางวัล "${oldName}" เป็น:`, oldName);
     if (!newName || newName === oldName) return;
-    if (selectedExam.medals?.[newName] !== undefined) return alert("มีเหรียญประเภทนี้อยู่แล้ว");
+    if (selectedExam.medals?.[newName]) return alert("มีรุ่นเหรียญรางวัลชื่อนี้อยู่แล้ว");
 
     const examRef = doc(db, "exams", selectedExam.id);
     const updatedMedals = { ...selectedExam.medals };
@@ -287,13 +299,13 @@ function App() {
     await updateDoc(examRef, { medals: updatedMedals, updatedAt: serverTimestamp() });
     await addDoc(collection(db, "logs"), {
       examName: selectedExam.examName, action: "เปลี่ยนชื่อเหรียญ",
-      details: `เปลี่ยนชื่อเหรียญจาก "${oldName}" เป็น "${newName}"`, operator, timestamp: serverTimestamp()
+      details: `เปลี่ยนชื่อเหรียญรางวัลจาก "${oldName}" เป็น "${newName}"`, operator, timestamp: serverTimestamp()
     });
   };
 
   const deleteMedalInDetail = async (medalName) => {
     if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
-    if (!window.confirm(`⚠️ ยืนยันการลบประเภทเหรียญ "${medalName}" และจำนวนสต็อกทั้งหมด?`)) return;
+    if (!window.confirm(`⚠️ ยืนยันการลบเหรียญรางวัล "${medalName}" และจำนวนสต็อกทั้งหมดในรุ่นนี้?`)) return;
 
     const examRef = doc(db, "exams", selectedExam.id);
     const updatedMedals = { ...selectedExam.medals };
@@ -301,8 +313,41 @@ function App() {
 
     await updateDoc(examRef, { medals: updatedMedals, updatedAt: serverTimestamp() });
     await addDoc(collection(db, "logs"), {
-      examName: selectedExam.examName, action: "ลบประเภทเหรียญ",
-      details: `ลบเหรียญประเภท: "${medalName}"`, operator, timestamp: serverTimestamp()
+      examName: selectedExam.examName, action: "ลบเหรียญรางวัล",
+      details: `ลบเหรียญรางวัล: "${medalName}"`, operator, timestamp: serverTimestamp()
+    });
+  };
+
+  const addSubMedalTypeInDetail = async (medalName) => {
+    if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
+    const subType = prompt(`เพิ่มประเภทเหรียญพิเศษสำหรับ "${medalName}" (เช่น ชมเชย, ทองพิเศษ):`);
+    if (!subType) return;
+    const trimmed = subType.trim();
+    if (selectedExam.medals[medalName]?.[trimmed] !== undefined) return alert("มีประเภทเหรียญนี้ในรุ่นนี้อยู่แล้ว");
+
+    const examRef = doc(db, "exams", selectedExam.id);
+    const updatedMedals = { ...selectedExam.medals };
+    updatedMedals[medalName] = { ...updatedMedals[medalName], [trimmed]: 0 };
+
+    await updateDoc(examRef, { medals: updatedMedals, updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "logs"), {
+      examName: selectedExam.examName, action: "เพิ่มประเภทเหรียญรางวัลย่อย",
+      details: `เพิ่มประเภทเหรียญย่อย "${trimmed}" ในเหรียญรุ่น "${medalName}"`, operator, timestamp: serverTimestamp()
+    });
+  };
+
+  const deleteSubMedalTypeInDetail = async (medalName, subType) => {
+    if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
+    if (!window.confirm(`ลบประเภทเหรียญ "${subType}" ของเหรียญรุ่น "${medalName}"?`)) return;
+
+    const examRef = doc(db, "exams", selectedExam.id);
+    const updatedMedals = { ...selectedExam.medals };
+    delete updatedMedals[medalName][subType];
+
+    await updateDoc(examRef, { medals: updatedMedals, updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "logs"), {
+      examName: selectedExam.examName, action: "ลบประเภทเหรียญรางวัลย่อย",
+      details: `ลบประเภทเหรียญย่อย "${subType}" ในเหรียญรุ่น "${medalName}"`, operator, timestamp: serverTimestamp()
     });
   };
 
@@ -569,8 +614,11 @@ function App() {
     }
 
     if (activeTab === 'medals') {
-      const medalEntries = sortMedals(selectedExam.medals || {});
-      const totalMedals = medalEntries.reduce((a, [_, b]) => a + (Number(b) || 0), 0);
+      const medalEntries = Object.entries(selectedExam.medals || {});
+      const filteredMedals = medalEntries.filter(([name]) => {
+        const matchYear = yearFilter === 'ทั้งหมด' || name.includes(yearFilter);
+        return matchYear;
+      });
 
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -578,7 +626,7 @@ function App() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '5px' }}>
               {!showAddMedalForm ? (
                 <button onClick={() => setShowAddMedalForm(true)} className="btn-add-small" style={{ fontSize: '1rem' }}>
-                  <PlusCircle size={18} /> เพิ่มเหรียญรางวัล
+                  <PlusCircle size={18} /> เพิ่มเหรียญรางวัลใหม่
                 </button>
               ) : null}
             </div>
@@ -587,26 +635,43 @@ function App() {
           {/* Inline Form to Add New Medal */}
           {isEditMode && showAddMedalForm && (
             <form onSubmit={handleCreateMedal} className="inline-form-card" style={{ borderLeft: '5px solid var(--theme-medal)' }}>
-              <h4><PlusCircle size={16} /> เพิ่มประเภทเหรียญรางวัล</h4>
+              <h4><PlusCircle size={16} /> เพิ่มเหรียญรางวัลใหม่</h4>
               <div className="inline-form-row">
                 <input
                   type="text"
-                  placeholder="ชื่อเหรียญรางวัล เช่น เหรียญรางวัลปี 2026, ทอง"
+                  placeholder="ชื่อรุ่นเหรียญรางวัล เช่น เหรียญรางวัลปี 2026"
                   value={newMedalName}
                   onChange={e => setNewMedalName(e.target.value)}
                   className="filter-input"
-                  style={{ flex: 2, minWidth: '200px' }}
+                  style={{ flex: 1, minWidth: '200px' }}
                   required
                 />
-                <input
-                  type="number"
-                  placeholder="จำนวนเริ่มต้น"
-                  min="0"
-                  value={newMedalQty || ''}
-                  onChange={e => setNewMedalQty(e.target.value)}
-                  className="filter-input"
-                  style={{ flex: 1, minWidth: '100px' }}
-                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-light)' }}>ระบุจำนวนสต็อกเริ่มต้นในแต่ละประเภท (ถ้ามี):</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+                  {Object.keys(newMedalSubTypes).map(type => (
+                    <div key={type} className="size-input-card">
+                      <span style={{ width: '50px', textAlign: 'center', fontWeight: 'bold', fontSize: '0.85rem' }}>{type}</span>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        min="0"
+                        value={newMedalSubTypes[type] || ''}
+                        onChange={e => handleMedalSubQtyChange(type, e.target.value)}
+                        style={{ width: '55px', border: 'none', borderLeft: '1px solid var(--color-border)', textAlign: 'center', outline: 'none' }}
+                      />
+                    </div>
+                  ))}
+                  <button 
+                    type="button" 
+                    onClick={addCustomMedalTypeInForm} 
+                    className="btn-add-small" 
+                    style={{ fontSize: '0.85rem', padding: '6px 12px', backgroundColor: '#f0f0f0', borderRadius: '10px' }}
+                  >
+                    + ประเภทพิเศษ
+                  </button>
+                </div>
               </div>
               <div className="inline-form-actions">
                 <button type="button" onClick={() => setShowAddMedalForm(false)} className="btn-form-cancel">ยกเลิก</button>
@@ -615,39 +680,60 @@ function App() {
             </form>
           )}
 
-          <div className="category-block" style={{ backgroundColor: 'var(--theme-medal)' }}>
-            <div className="block-title-row">
-              <p className="block-title"><Award size={20} /> เหรียญรางวัล</p>
-              <div className="badge-total">รวมทั้งหมด: {totalMedals} เหรียญ</div>
-            </div>
-            <div className="items-grid">
-              {medalEntries.length > 0 ? (
-                medalEntries.map(([t, q]) => (
-                  <div key={t} className="item-card-inner">
-                    <small className="item-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {t}
+          {filteredMedals.length > 0 ? (
+            filteredMedals.map(([name, medalMap]) => {
+              const totalInType = Object.values(medalMap).reduce((a, b) => a + (Number(b) || 0), 0);
+              return (
+                <div key={name} className="category-block" style={{ backgroundColor: 'var(--theme-medal)' }}>
+                  <div className="block-title-row">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <p className="block-title"><Award size={20} /> เหรียญ: {name}</p>
                       {isEditMode && (
-                        <span style={{ display: 'inline-flex', gap: '2px' }}>
-                          <button onClick={() => renameMedalInDetail(t)} style={{ background:'none', border:'none', cursor:'pointer', padding:'2px', color:'var(--color-text-light)' }} title="เปลี่ยนชื่อ">
-                            <Edit3 size={10} />
+                        <>
+                          <button onClick={() => renameMedalInDetail(name)} className="btn-icon-action" title="เปลี่ยนชื่อเหรียญรางวัล">
+                            <Edit3 size={14} />
                           </button>
-                          <button onClick={() => deleteMedalInDetail(t)} style={{ background:'none', border:'none', cursor:'pointer', padding:'2px', color:'#FF6B6B' }} title="ลบ">
-                            <Trash2 size={10} />
+                          <button onClick={() => deleteMedalInDetail(name)} className="btn-icon-action delete" title="ลบเหรียญรางวัลรุ่นนี้">
+                            <Trash2 size={14} />
                           </button>
-                        </span>
+                        </>
                       )}
-                    </small>
-                    <div className="item-value num-font">{q}</div>
-                    {isEditMode && renderAdjustUI('medals', null, t)}
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      {isEditMode && (
+                        <button onClick={() => addSubMedalTypeInDetail(name)} className="btn-add-small" style={{ fontSize: '0.85rem' }}>
+                          + เพิ่มประเภทพิเศษ
+                        </button>
+                      )}
+                      <div className="badge-total">รวมทั้งหมด: {totalInType} เหรียญ</div>
+                    </div>
                   </div>
-                ))
-              ) : (
-                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '20px', color: 'var(--color-text-light)' }}>
-                  ไม่มีข้อมูลเหรียญรางวัล
+                  <div className="items-grid">
+                    {sortMedals(medalMap).map(([type, qty]) => (
+                      <div key={type} className="item-card-inner">
+                        {isEditMode && (
+                          <button 
+                            onClick={() => deleteSubMedalTypeInDetail(name, type)} 
+                            className="btn-delete-size" 
+                            title={`ลบประเภท ${type}`}
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                        <small className="item-label">{type}</small>
+                        <div className="item-value num-font">{qty}</div>
+                        {isEditMode && renderAdjustUI('medals', name, type)}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
+              );
+            })
+          ) : (
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-light)' }}>
+              ไม่พบข้อมูลเหรียญรางวัลตามเงื่อนไขที่เลือก
             </div>
-          </div>
+          )}
         </div>
       );
     }
@@ -836,9 +922,11 @@ function App() {
 
             {/* Smart Filter Bar (Only show if year filters exist) */}
             {((activeTab === 'shirts' && extractYearsFromKeys(Object.keys(selectedExam.shirts || {})).length > 1) ||
+              (activeTab === 'medals' && extractYearsFromKeys(Object.keys(selectedExam.medals || {})).length > 1) ||
               (activeTab === 'covers' && extractYearsFromKeys(Object.keys(selectedExam.covers || {})).length > 1)) && (
               <div className="filter-bar">
                 {activeTab === 'shirts' && getYearFilterUI(Object.keys(selectedExam.shirts || {}))}
+                {activeTab === 'medals' && getYearFilterUI(Object.keys(selectedExam.medals || {}))}
                 {activeTab === 'covers' && getYearFilterUI(Object.keys(selectedExam.covers || {}))}
               </div>
             )}
