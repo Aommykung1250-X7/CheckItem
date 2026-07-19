@@ -44,8 +44,12 @@ function App() {
   const [newCoverNameForm, setNewCoverNameForm] = useState('');
   const [newCoverQty, setNewCoverQty] = useState(0);
 
+  // Temporary Exam Name for Inline Rename in Popup Header
+  const [tempExamName, setTempExamName] = useState('');
+
   useEffect(() => {
-    const q = query(collection(db, "exams"), orderBy("updatedAt", "desc"));
+    // Sort by examName alphabetically asc so cards remain in stable order
+    const q = query(collection(db, "exams"), orderBy("examName", "asc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setExams(data);
@@ -139,6 +143,35 @@ function App() {
       details: `${category} ${subCategory || ''} ${field} จำนวน ${amountToChange}`, operator, timestamp: serverTimestamp()
     });
     setAdjustAmount({ ...adjustAmount, [amountKey]: '' });
+  };
+
+  // ==================== EXAM INLINE RENAME ====================
+  const handleRenameExam = async () => {
+    if (!operator) {
+      alert("กรุณาระบุชื่อผู้ใช้งานก่อนแก้ไข");
+      setTempExamName(selectedExam.examName);
+      return;
+    }
+    if (!tempExamName || !tempExamName.trim()) {
+      alert("ชื่อรายการสอบต้องไม่ว่างเปล่า");
+      setTempExamName(selectedExam.examName);
+      return;
+    }
+    const newName = tempExamName.trim();
+    if (newName === selectedExam.examName) return;
+
+    try {
+      const examRef = doc(db, "exams", selectedExam.id);
+      await updateDoc(examRef, { examName: newName, updatedAt: serverTimestamp() });
+      await addDoc(collection(db, "logs"), {
+        examName: newName, action: "แก้ไขชื่อรายการสอบ",
+        details: `เปลี่ยนชื่อรายการสอบจาก "${selectedExam.examName}" เป็น "${newName}"`,
+        operator, timestamp: serverTimestamp()
+      });
+    } catch (e) {
+      alert(e.message);
+      setTempExamName(selectedExam.examName);
+    }
   };
 
   // ==================== SHIRTS CRUD ====================
@@ -866,6 +899,7 @@ function App() {
                 setActiveTab('shirts'); 
                 setYearFilter('ทั้งหมด'); 
                 resetInlineForms();
+                setTempExamName(exam.examName); // Init temp exam name on modal open
               }} 
               className="exam-card"
             >
@@ -885,7 +919,26 @@ function App() {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h2>{selectedExam.examName}</h2>
+              {isEditMode ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <input
+                    type="text"
+                    className="inline-rename-input"
+                    style={{ fontSize: '1.7rem', fontWeight: 700, width: 'auto', minWidth: '350px' }}
+                    value={tempExamName}
+                    onChange={(e) => setTempExamName(e.target.value)}
+                    onBlur={handleRenameExam}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRenameExam();
+                    }}
+                  />
+                  <button onClick={handleRenameExam} className="btn-add-small" style={{ fontSize: '0.9rem' }}>
+                    <CheckCircle2 size={16} /> ยืนยันชื่อ
+                  </button>
+                </div>
+              ) : (
+                <h2>{selectedExam.examName}</h2>
+              )}
               <div className="modal-header-actions">
                 <button 
                   onClick={() => setIsEditMode(!isEditMode)} 
