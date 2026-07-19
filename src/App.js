@@ -146,6 +146,14 @@ function App() {
     setNewShirtSizes(prev => ({ ...prev, [size]: Number(value) }));
   };
 
+  const addCustomSizeInForm = () => {
+    const sizeLabel = prompt("ระบุไซส์พิเศษที่ต้องการเพิ่ม (เช่น 4XL, เด็ก):");
+    if (!sizeLabel) return;
+    const normalizedSize = sizeLabel.toUpperCase().trim();
+    if (newShirtSizes[normalizedSize] !== undefined) return alert("มีไซส์นี้ในแบบเสื้อแล้ว");
+    setNewShirtSizes(prev => ({ ...prev, [normalizedSize]: 0 }));
+  };
+
   const handleCreateShirt = async (e) => {
     e.preventDefault();
     if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
@@ -207,7 +215,7 @@ function App() {
 
   const addSizeToShirtInDetail = async (type) => {
     if (!operator) return alert("กรุณาระบุชื่อผู้ใช้งานก่อน");
-    const sizeLabel = prompt(`เพิ่มไซส์สำหรับเสื้อ "${type}" (เช่น 4XL, เด็ก, 5XL):`);
+    const sizeLabel = prompt("ระบุไซส์พิเศษที่ต้องการเพิ่ม (เช่น 4XL, เด็ก):");
     if (!sizeLabel) return;
     const normalizedSize = sizeLabel.toUpperCase().trim();
     if (selectedExam.shirts[type]?.[normalizedSize] !== undefined) return alert("มีไซส์นี้ในรุ่นนี้อยู่แล้ว");
@@ -256,7 +264,7 @@ function App() {
     await updateDoc(examRef, { medals: updatedMedals, updatedAt: serverTimestamp() });
     await addDoc(collection(db, "logs"), {
       examName: selectedExam.examName, action: "เพิ่มประเภทเหรียญ",
-      details: `เพิ่มเหรียญแบบใหม่: "${medalKey}" จำนวน ${newMedalQty} เหรียญ`, operator, timestamp: serverTimestamp()
+      details: `เพิ่มเหรียญรางวัล: "${medalKey}" จำนวน ${newMedalQty} เหรียญ`, operator, timestamp: serverTimestamp()
     });
 
     // Reset Form
@@ -373,7 +381,7 @@ function App() {
       await setDoc(doc(db, "exams", docId), { 
         examName, 
         shirts: {}, 
-        medals: { "ทอง": 0, "เงิน": 0, "ทองแดง": 0 }, 
+        medals: {}, // Initialize empty
         covers: {}, 
         updatedAt: serverTimestamp() 
       });
@@ -471,7 +479,7 @@ function App() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-light)' }}>ระบุจำนวนสต็อกเริ่มต้นในแต่ละไซส์ (ถ้ามี):</span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
                   {Object.keys(newShirtSizes).map(size => (
                     <div key={size} className="size-input-card">
                       <span style={{ width: '45px', textAlign: 'center', fontWeight: 'bold', fontSize: '0.85rem' }}>{size}</span>
@@ -485,6 +493,14 @@ function App() {
                       />
                     </div>
                   ))}
+                  <button 
+                    type="button" 
+                    onClick={addCustomSizeInForm} 
+                    className="btn-add-small" 
+                    style={{ fontSize: '0.85rem', padding: '6px 12px', backgroundColor: '#f0f0f0', borderRadius: '10px' }}
+                  >
+                    + ไซส์พิเศษ
+                  </button>
                 </div>
               </div>
               <div className="inline-form-actions">
@@ -553,7 +569,7 @@ function App() {
     }
 
     if (activeTab === 'medals') {
-      const medalEntries = sortMedals(selectedExam.medals || { "ทอง": 0, "เงิน": 0, "ทองแดง": 0 });
+      const medalEntries = sortMedals(selectedExam.medals || {});
       const totalMedals = medalEntries.reduce((a, [_, b]) => a + (Number(b) || 0), 0);
 
       return (
@@ -562,7 +578,7 @@ function App() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '5px' }}>
               {!showAddMedalForm ? (
                 <button onClick={() => setShowAddMedalForm(true)} className="btn-add-small" style={{ fontSize: '1rem' }}>
-                  <PlusCircle size={18} /> เพิ่มประเภทเหรียญ
+                  <PlusCircle size={18} /> เพิ่มเหรียญรางวัล
                 </button>
               ) : null}
             </div>
@@ -575,7 +591,7 @@ function App() {
               <div className="inline-form-row">
                 <input
                   type="text"
-                  placeholder="ชื่อประเภทเหรียญ เช่น เหรียญชมเชย, ทองพิเศษ"
+                  placeholder="ชื่อเหรียญรางวัล เช่น เหรียญรางวัลปี 2026, ทอง"
                   value={newMedalName}
                   onChange={e => setNewMedalName(e.target.value)}
                   className="filter-input"
@@ -696,15 +712,17 @@ function App() {
               {filteredCovers.length > 0 ? (
                 filteredCovers.map(([c, q]) => (
                   <div key={c} className="item-card-inner">
+                    {isEditMode && (
+                      <button 
+                        onClick={() => deleteCoverInDetail(c)} 
+                        className="btn-delete-size" 
+                        title={`ลบ Cover ${c}`}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
                     {isEditMode ? (
                       <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:'6px', width:'100%', position: 'relative'}}>
-                        <button 
-                          onClick={() => deleteCoverInDetail(c)} 
-                          className="btn-delete-size" 
-                          title={`ลบ Cover ${c}`}
-                        >
-                          <Trash2 size={12} />
-                        </button>
                         <input 
                           className="filter-input" 
                           style={{ padding: '6px', fontSize: '0.85rem', textAlign: 'center', width: '85%' }} 

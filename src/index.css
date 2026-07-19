@@ -767,8 +767,8 @@ body {
 
 .btn-delete-size {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: 5px;
+  right: 5px;
   background: none;
   border: none;
   color: var(--color-text-light);
